@@ -1,59 +1,73 @@
-$(document).ready(function () {
+document.addEventListener('DOMContentLoaded', function () {
+    const menuButton = document.getElementById('menu');
+    const navbar = document.querySelector('.navbar');
+    const scrollTopButton = document.querySelector('#scroll-top');
 
-    $('#menu').click(function () {
-        $(this).toggleClass('fa-times');
-        $('.navbar').toggleClass('nav-toggle');
-    });
+    const closeNavbar = () => {
+        if (!menuButton || !navbar) return;
+        menuButton.classList.remove('fa-times');
+        navbar.classList.remove('nav-toggle');
+        menuButton.setAttribute('aria-expanded', 'false');
+    };
 
-    $(window).on('scroll load', function () {
-        $('#menu').removeClass('fa-times');
-        $('.navbar').removeClass('nav-toggle');
+    const updateActiveSection = () => {
+        const sections = document.querySelectorAll('section[id]');
+        const navLinks = document.querySelectorAll('.navbar ul li a');
+        let currentSectionId = 'home';
 
-        if (window.scrollY > 60) {
-            document.querySelector('#scroll-top').classList.add('active');
-        } else {
-            document.querySelector('#scroll-top').classList.remove('active');
+        sections.forEach((section) => {
+            const sectionTop = section.offsetTop - 200;
+            const sectionHeight = section.offsetHeight;
+            if (window.scrollY >= sectionTop && window.scrollY < sectionTop + sectionHeight) {
+                currentSectionId = section.id;
+            }
+        });
+
+        navLinks.forEach((link) => {
+            const isCurrent = link.getAttribute('href') === `#${currentSectionId}`;
+            link.classList.toggle('active', isCurrent);
+            if (isCurrent) {
+                link.setAttribute('aria-current', 'page');
+            } else {
+                link.removeAttribute('aria-current');
+            }
+        });
+    };
+
+    const handlePageScroll = () => {
+        if (scrollTopButton) {
+            if (window.scrollY > 60) {
+                scrollTopButton.classList.add('active');
+            } else {
+                scrollTopButton.classList.remove('active');
+            }
         }
 
-        // scroll spy
-        $('section').each(function () {
-            let height = $(this).height();
-            let offset = $(this).offset().top - 200;
-            let top = $(window).scrollTop();
-            let id = $(this).attr('id');
+        updateActiveSection();
+    };
 
-            if (top > offset && top < offset + height) {
-                $('.navbar ul li a').removeClass('active');
-                $('.navbar').find(`[href="#${id}"]`).addClass('active');
-            }
+    window.addEventListener('scroll', handlePageScroll, { passive: true });
+    window.addEventListener('load', handlePageScroll);
+
+    document.querySelectorAll('a[href^="#"]').forEach((link) => {
+        link.addEventListener('click', function (event) {
+            const targetId = this.getAttribute('href');
+            if (!targetId || targetId === '#') return;
+            const targetElement = document.querySelector(targetId);
+            if (!targetElement) return;
+            event.preventDefault();
+            targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            closeNavbar();
         });
     });
 
-    // smooth scrolling
-    $('a[href*="#"]').on('click', function (e) {
-        e.preventDefault();
-        $('html, body').animate({
-            scrollTop: $($(this).attr('href')).offset().top,
-        }, 500, 'linear')
+    document.querySelectorAll('.navbar a').forEach((link) => {
+        link.addEventListener('click', function () {
+            if (window.innerWidth <= 768) {
+                closeNavbar();
+            }
+        });
     });
-
-    // // <!-- emailjs to mail contact form data -->
-    // $("#contact-form").submit(function (event) {
-    //     emailjs.init("user_TTDmetQLYgWCLzHTDgqxm");
-
-    //     emailjs.sendForm('contact_service', 'template_contact', '#contact-form')
-    //         .then(function (response) {
-    //             console.log('SUCCESS!', response.status, response.text);
-    //             document.getElementById("contact-form").reset();
-    //             alert("Form Submitted Successfully");
-    //         }, function (error) {
-    //             console.log('FAILED...', error);
-    //             alert("Form Submission Failed! Try Again");
-    //         });
-    //     event.preventDefault();
-    // });
-    // // <!-- emailjs to mail contact form data -->
-
 });
 
 document.addEventListener('visibilitychange',
