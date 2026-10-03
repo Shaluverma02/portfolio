@@ -1,0 +1,81 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Remove fixture project record",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"-e",
+				"const { MongoClient } = require('mongodb'); const fs = require('node:fs/promises'); const path = require('node:path'); (async () => { const client = new MongoClient(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017', { serverSelectionTimeoutMS: 5000 }); try { await client.connect(); const db = client.db(process.env.MONGODB_DB || 'portfolio'); const result = await db.collection('projects').deleteMany({ name: 'Fixture project' }); const file = path.join(process.cwd(), 'projects.json'); let removedFromFile = 0; try { const records = JSON.parse(await fs.readFile(file, 'utf8')); const filtered = records.filter(item => item.name !== 'Fixture project'); removedFromFile = records.length - filtered.length; if (removedFromFile) await fs.writeFile(file, JSON.stringify(filtered, null, 2) + '\\n', 'utf8'); } catch (error) { if (error.code !== 'ENOENT') throw error; } console.log(JSON.stringify({ removedFromMongoDB: result.deletedCount, removedFromJson: removedFromFile })); } finally { await client.close(); } })().catch(error => { console.error('Could not remove Fixture project:', error.message); process.exitCode = 1; });"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Run fixture cleanup script",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				".remove-fixture-project.cjs"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Run portfolio tests after config change",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"test"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Check configured Mongo connection",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"--env-file=.env",
+				"-e",
+				"const { MongoClient } = require('mongodb'); const uri = process.env.MONGODB_URI; if (!uri) { console.error('MONGODB_URI is not configured'); process.exitCode = 1; } else { const client = new MongoClient(uri, { serverSelectionTimeoutMS: 8000 }); client.connect().then(() => client.db().command({ ping: 1 })).then(() => console.log('MongoDB connection successful (' + (uri.startsWith('mongodb+srv://') ? 'Atlas SRV' : 'standard URI') + ')')).catch(error => { console.error('MongoDB connection failed:', error.name, error.code || ''); process.exitCode = 1; }).finally(() => client.close()); }"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Verify configured Mongo connection",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"--env-file=.env",
+				".mongo-connection-check.cjs"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Diagnose Mongo connection",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"--env-file=.env",
+				".mongo-connection-check.cjs"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Check Mongo environment keys",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"--env-file=.env",
+				".mongo-connection-check.cjs"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		}
+	]
+}

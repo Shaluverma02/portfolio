@@ -4,6 +4,7 @@ Run the portfolio and its private admin dashboard:
 
 ```sh
 npm install
+copy .env.example .env
 npm start
 ```
 
@@ -24,12 +25,20 @@ Sign out
 returns to the login page. Sessions expire after eight hours or a server restart.
 The old `/showdata.html` address redirects to the protected inbox.
 
-Portfolio content is stored in `projects.json`, `skills.json`, `experience.json`, and
-`certificates.json` in the project root. The homepage, Projects page, and Experience
-page load those same files through the server. Refresh the public page after saving
-an admin change. Existing content is kept and given stable IDs automatically.
-Writes are serialized and replace the JSON file atomically. An empty section stays
-empty; removed content does not reappear from hardcoded HTML.
+Portfolio content and contact submissions are stored in MongoDB. Start a local
+MongoDB server (`mongod`) on its default address, `mongodb://127.0.0.1:27017`, or
+set `MONGODB_URI` to your MongoDB connection string and optionally `MONGODB_DB`
+(defaults to `portfolio`). Copy `.env.example` to `.env` to configure these values
+for both `npm start` and `npm run dev`; production can provide them as environment
+variables instead. For MongoDB Atlas, use the `mongodb+srv://` connection string
+from Atlas, ensure the database user has read/write access, and allow your server's
+IP address in Atlas Network Access. URL-encode special characters in the database
+username or password. On first startup, existing `projects.json`,
+`skills.json`, `experience.json`, `certificates.json`, and `contacts.json` records
+are imported once; subsequent reads and writes use MongoDB. The homepage, Projects
+page, and Experience page continue to load the same public JSON endpoints. Refresh
+the public page after saving an admin change. An empty section stays empty, and
+removed content does not reappear from hardcoded HTML.
 
 Project images support existing names (such as `portfolio1`), `/assets/...` paths,
 or http(s) image URLs. Skill icons accept `/assets/...` paths or http(s) URLs.
@@ -48,8 +57,8 @@ credentials and remove the initial login-details file. There is no public sign-u
 
 `PORT` overrides port 5500. `npm run dev` restarts the server on source changes;
 this also clears login sessions. For HTTPS hosting, use `NODE_ENV=production` so
-session cookies have the Secure flag. The JSON data and in-memory sessions are
-intended for one server process with a persistent writable disk.
+session cookies have the Secure flag. Admin credentials remain in the private `.admin` directory. Login sessions remain
+in memory and expire after a server restart.
 
 ```sh
 npm test

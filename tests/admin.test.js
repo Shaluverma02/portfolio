@@ -5,6 +5,7 @@ const path = require('node:path');
 const os = require('node:os');
 const { once } = require('node:events');
 const { createApp } = require('../server');
+const { createContentStore } = require('../lib/content-store');
 
 const login = { username: 'admin', password: 'Test-only-password-123!' };
 
@@ -21,7 +22,24 @@ async function fixture(t, env = { ADMIN_PASSWORD: login.password }) {
     await fs.writeFile(path.join(dataDir, 'contacts.json'), '[]');
     await fs.writeFile(path.join(dataDir, 'projects.json'), JSON.stringify([{ name: 'Fixture project' }]));
     await fs.writeFile(path.join(dataDir, 'skills.json'), JSON.stringify([{ name: 'JavaScript' }, { name: 'CSS' }]));
-    const app = await createApp({ dataDir, env });
+    const contentStore = await createContentStore(dataDir);
+    let contactWrites = Promise.resolve();
+    const dataStore = {
+        ...contentStore,
+        async readContacts() {
+            return JSON.parse(await fs.readFile(path.join(dataDir, 'contacts.json'), 'utf8'));
+        },
+        addContact(entry) {
+            const write = contactWrites.then(async () => {
+                const contacts = await this.readContacts();
+                contacts.push(entry);
+                await fs.writeFile(path.join(dataDir, 'contacts.json'), JSON.stringify(contacts, null, 2), 'utf8');
+            });
+            contactWrites = write.catch(() => {});
+            return write;
+        }
+    };
+    const app = await createApp({ dataDir, env, dataStore });
     const server = app.listen(0, '127.0.0.1');
     await once(server, 'listening');
     t.after(async () => {
@@ -33,7 +51,7 @@ async function fixture(t, env = { ADMIN_PASSWORD: login.password }) {
     const post = (route, body, headers = {}) => request(route, {
         method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body)
     });
-    return { dataDir, app, base, request, post };
+    return { dataDir, app, base, request, post, dataStore };
 }
 
 test('anonymous access is gated and private files are never served', async t => {
@@ -134,7 +152,7 @@ test('portfolio pages stay public and contact submissions persist without data l
 });
 
 test('generated credentials persist across restarts while sessions do not', async t => {
-    const { dataDir, post } = await fixture(t, {});
+    const { dataDir, post, dataStore } = await fixture(t, {});
     const details = await fs.readFile(path.join(dataDir, '.admin', 'login-details.txt'), 'utf8');
     const password = details.match(/^Password: (.+)$/m)[1];
     assert.ok(password.length >= 20);
@@ -143,7 +161,7 @@ test('generated credentials persist across restarts while sessions do not', asyn
     const signedIn = await post('/api/admin/login', { username: 'admin', password });
     assert.equal(signedIn.status, 200);
     const oldCookie = signedIn.headers.get('set-cookie').split(';')[0];
-    const restarted = await createApp({ dataDir, env: {} });
+    const restarted = await createApp({ dataDir, env: {}, dataStore });
     assert.equal(await fs.readFile(path.join(dataDir, '.admin', 'credentials.json'), 'utf8'), original);
     const server = restarted.listen(0, '127.0.0.1');
     await once(server, 'listening');
@@ -185,7 +203,7 @@ const contentFixtures = {
 };
 
 test('all content sections support add, edit and delete with durable JSON and public data', async t => {
-    const { dataDir, request, post } = await fixture(t);
+    const { dataDir, request, post, dataStore } = await fixture(t);
     const response = await post('/api/admin/login', login);
     const Cookie = response.headers.get('set-cookie').split(';')[0];
     const headers = { Cookie, 'Content-Type': 'application/json' };
@@ -214,13 +232,13 @@ test('all content sections support add, edit and delete with durable JSON and pu
         assert.equal(updatedItem.id, item.id);
         assert.equal(updatedItem[titleKey], edited[titleKey]);
         // Re-open the app from disk: saved edits survive application restarts.
-        await createApp({ dataDir, env: {} });
+        await createApp({ dataDir, env: {}, dataStore });
         publicResponse = await request(`/${collection}.json`);
         assert.deepEqual((await publicResponse.json()).find(entry => entry.id === item.id), updatedItem);
         const deleted = await request(`${route}/${item.id}`, { method: 'DELETE', headers, body: '{}' });
         assert.equal(deleted.status, 200, collection);
         assert.deepEqual(JSON.parse(await fs.readFile(file, 'utf8')), original);
-        await createApp({ dataDir, env: {} });
+        await createApp({ dataDir, env: {}, dataStore });
         assert.deepEqual(await (await request(`/${collection}.json`)).json(), original);
         const afterDelete = await (await request('/api/admin/dashboard', { headers })).json();
         assert.equal(afterDelete.counts[collection], original.length);

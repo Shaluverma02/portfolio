@@ -4,32 +4,20 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { createAdminAuth } = require('./lib/admin-auth');
-const { createContentStore } = require('./lib/content-store');
+const { createMongoStore } = require('./lib/mongo-store');
 const { attachChat } = require('./lib/chat');
 const ROOT = __dirname;
 const UPLOADS_DIR = path.join(ROOT, 'uploads');
 const ALLOWED_MIME = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp', 'image/svg+xml': 'svg', 'image/avif': 'avif' };
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 
-async function readList(file) {
-    try {
-        const data = JSON.parse(await fs.readFile(file, 'utf8'));
-        if (!Array.isArray(data)) throw new Error('Expected a JSON array');
-        return data;
-    } catch (error) {
-        if (error.code === 'ENOENT') return [];
-        throw error;
-    }
-}
-
-async function createApp({ dataDir = ROOT, env = process.env } = {}) {
+async function createApp({ dataDir = ROOT, env = process.env, dataStore: suppliedDataStore } = {}) {
     const app = express();
-    const contactFile = path.join(dataDir, 'contacts.json');
     const auth = await createAdminAuth({ dataDir, env });
-    const contentStore = await createContentStore(dataDir);
-    let contactWrites = Promise.resolve();
+    const dataStore = suppliedDataStore || await createMongoStore({ dataDir, env });
     app.disable('x-powered-by');
     app.locals._auth = auth; // exposed so startup block can pass to attachChat
+    app.locals._dataStore = dataStore;
     app.use((req, res, next) => { res.setHeader('X-Content-Type-Options', 'nosniff'); next(); });
     app.use(express.json({ limit: '16kb' }));
     app.use(['/admin', '/api/admin', '/api/contacts'], (req, res, next) => {
@@ -55,25 +43,25 @@ async function createApp({ dataDir = ROOT, env = process.env } = {}) {
     app.get('/api/admin/session', auth.requireApi, (req, res) => res.json({ username: req.admin.username }));
     app.get('/api/admin/dashboard', auth.requireApi, async (req, res) => {
         const [contacts, projects, skills, experience, certificates] = await Promise.all([
-            readList(contactFile), contentStore.read('projects'), contentStore.read('skills'), contentStore.read('experience'), contentStore.read('certificates')
+            dataStore.readContacts(), dataStore.read('projects'), dataStore.read('skills'), dataStore.read('experience'), dataStore.read('certificates')
         ]);
         res.json({ username: req.admin.username,
             counts: { projects: projects.length, skills: skills.length, experience: experience.length, certificates: certificates.length, messages: contacts.length },
             contacts: contacts.slice().reverse(), projects, skills, experience, certificates });
     });
     app.get('/api/admin/content/:collection', auth.requireApi, async (req, res) => {
-        res.json({ items: await contentStore.read(req.params.collection) });
+        res.json({ items: await dataStore.read(req.params.collection) });
     });
     app.post('/api/admin/content/:collection', auth.requireApi, auth.sameOrigin, async (req, res) => {
-        res.status(201).json(await contentStore.mutate(req.params.collection, 'add', null, req.body));
+        res.status(201).json(await dataStore.mutate(req.params.collection, 'add', null, req.body));
     });
     app.put('/api/admin/content/:collection/:id', auth.requireApi, auth.sameOrigin, async (req, res) => {
-        res.json(await contentStore.mutate(req.params.collection, 'edit', req.params.id, req.body));
+        res.json(await dataStore.mutate(req.params.collection, 'edit', req.params.id, req.body));
     });
     app.delete('/api/admin/content/:collection/:id', auth.requireApi, auth.sameOrigin, async (req, res) => {
-        res.json(await contentStore.mutate(req.params.collection, 'delete', req.params.id));
+        res.json(await dataStore.mutate(req.params.collection, 'delete', req.params.id));
     });
-    app.get('/api/contacts', auth.requireApi, async (req, res) => res.json(await readList(contactFile)));
+    app.get('/api/contacts', auth.requireApi, async (req, res) => res.json(await dataStore.readContacts()));
 
     app.post('/api/save-contact-data', async (req, res) => {
         const body = req.body;
@@ -88,15 +76,7 @@ async function createApp({ dataDir = ROOT, env = process.env } = {}) {
             entry[key] = value.trim();
         }
         entry.timestamp = new Date().toISOString();
-        // Serialize writes so simultaneous submissions are not lost.
-        const write = contactWrites.then(async () => {
-            const contacts = await readList(contactFile);
-            contacts.push(entry);
-            await fs.writeFile(`${contactFile}.tmp`, JSON.stringify(contacts, null, 2), 'utf8');
-            await fs.rename(`${contactFile}.tmp`, contactFile);
-        });
-        contactWrites = write.catch(() => {});
-        await write;
+        await dataStore.addContact(entry);
         res.status(200).json({ message: 'Data saved successfully.' });
     });
     // Image upload API — admin only, raw binary body
@@ -129,7 +109,7 @@ async function createApp({ dataDir = ROOT, env = process.env } = {}) {
     for (const collection of ['skills', 'projects', 'experience', 'certificates']) {
         app.get(`/${collection}.json`, async (req, res) => {
             res.setHeader('Cache-Control', 'no-store');
-            res.json(await contentStore.read(collection));
+            res.json(await dataStore.read(collection));
         });
     }
     app.get('/404.html', (req, res) => res.sendFile(path.join(ROOT, '404.html')));
@@ -149,6 +129,11 @@ if (require.main === module) {
     createApp().then(app => {
         const port = Number(process.env.PORT) || 5500;
         const server = http.createServer(app);
+        server.on('close', () => {
+            app.locals._dataStore.close().catch(error => {
+                console.error('MongoDB connection could not close:', error.message);
+            });
+        });
         // Attach WebSocket-based live chat
         const auth = app.locals._auth;
         attachChat(server, auth);
