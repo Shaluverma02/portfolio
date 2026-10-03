@@ -6,8 +6,22 @@ const os = require('node:os');
 const { once } = require('node:events');
 const { createApp } = require('../server');
 const { createContentStore } = require('../lib/content-store');
+const { publicRecord } = require('../lib/mongo-store');
 
 const login = { username: 'admin', password: 'Test-only-password-123!' };
+
+test('MongoDB content records expose their document ID to admin actions', () => {
+    assert.deepEqual(publicRecord({
+        _id: 'saved-skill-id',
+        _order: 3,
+        name: 'Mongo Db',
+        icon: 'https://example.com/mongodb.png'
+    }), {
+        name: 'Mongo Db',
+        icon: 'https://example.com/mongodb.png',
+        id: 'saved-skill-id'
+    });
+});
 
 async function fixture(t, env = { ADMIN_PASSWORD: login.password }) {
     const tempRoot = await fs.realpath(os.tmpdir());

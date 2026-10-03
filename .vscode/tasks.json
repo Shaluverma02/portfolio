@@ -76,6 +76,102 @@
 			],
 			"isBackground": false,
 			"problemMatcher": []
+		},
+		{
+			"label": "Test admin Mongo document IDs",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"test",
+				"--",
+				"--test-name-pattern=MongoDB content records expose"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Verify skills delete fix",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"test"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Retest skill ID handling",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"test"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Inspect skill record IDs",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"--env-file=.env",
+				".inspect-skill-ids.cjs"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Inspect running dashboard response",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				".inspect-live-dashboard.cjs"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Check local API IDs",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"--env-file=.env",
+				".inspect-live-dashboard.cjs"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Repair missing Mongo record IDs",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"--env-file=.env",
+				".backfill-mongo-content-ids.cjs"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Verify MongoDB skill IDs",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"--env-file=.env",
+				".verify-mongo-content-ids.cjs"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Run tests after ID repair",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"test"
+			],
+			"isBackground": false,
+			"problemMatcher": []
 		}
 	]
 }

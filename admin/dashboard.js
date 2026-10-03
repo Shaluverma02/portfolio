@@ -121,6 +121,24 @@ function safeLink(value) {
     try { const url = new URL(value, location.origin); return ['http:', 'https:'].includes(url.protocol) ? url.href : null; }
     catch { return null; }
 }
+function contentRecordId(item) {
+    for (const id of [item?.id, item?._id]) {
+        if (typeof id === 'string' && id.trim()) return id;
+    }
+    return '';
+}
+function normalizeContentRecords(records) {
+    return Array.isArray(records) ? records.map(item => ({
+        ...item,
+        id: contentRecordId(item)
+    })) : [];
+}
+function normalizeDashboardContent(data) {
+    for (const collection of ['projects', 'skills', 'experience', 'certificates']) {
+        data[collection] = normalizeContentRecords(data[collection]);
+    }
+    return data;
+}
 function renderProjects() {
     const container = document.querySelector('#project-list'); container.replaceChildren();
     if (!dashboard.projects.length) return emptyState(container, 'No projects yet', 'Use Add project to feature your first project.');
@@ -242,6 +260,10 @@ function renderCertificates() {
 }
 function itemActions(collection, item) {
     const actions = element('div', 'item-actions');
+    if (!contentRecordId(item)) {
+        actions.append(element('span', 'muted', 'This item has no ID. Refresh the dashboard before editing or deleting it.'));
+        return actions;
+    }
     for (const [mode, label] of [['edit', 'Edit'], ['delete', 'Delete']]) {
         const button = element('button', `item-button ${mode === 'delete' ? 'danger-text' : ''}`, label);
         button.type = 'button'; button.setAttribute('aria-label', `${label} ${item.name || item.title}`);
@@ -290,6 +312,11 @@ editorForm.addEventListener('submit', async event => {
     event.preventDefault();
     if (editorBusy || !editing) return;
     const { collection, item, mode } = editing;
+    if (item && !contentRecordId(item)) {
+        editorError.textContent = 'This item has no ID. Refresh the dashboard and try again.';
+        editorError.hidden = false;
+        return;
+    }
     let body = Object.fromEntries(new FormData(editorForm));
     if (collection === 'certificates' && mode !== 'delete') {
         body = Object.fromEntries(Object.entries(body).map(([key, value]) => [key, value.trim()]));
@@ -314,7 +341,7 @@ editorForm.addEventListener('submit', async event => {
     editorForm.querySelectorAll('button').forEach(button => { button.disabled = true; });
     editorSave.textContent = mode === 'delete' ? 'Deleting…' : 'Saving…';
     try {
-        const suffix = item ? `/${encodeURIComponent(item.id)}` : '';
+        const suffix = item ? `/${encodeURIComponent(contentRecordId(item))}` : '';
         const response = await fetch(`/api/admin/content/${collection}${suffix}`, {
             method: mode === 'delete' ? 'DELETE' : item ? 'PUT' : 'POST',
             headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify(body)
@@ -322,7 +349,8 @@ editorForm.addEventListener('submit', async event => {
         if (response.status === 401) { window.location.replace('/admin'); return; }
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || 'Could not save your changes.');
-        dashboard[collection] = result.items; dashboard.counts[collection] = result.items.length;
+        dashboard[collection] = normalizeContentRecords(result.items);
+        dashboard.counts[collection] = result.items.length;
         renderContent(); editor.close();
         if (collection === 'certificates') document.querySelector('[data-add="certificates"]').focus();
         saveStatus.textContent = `${contentSchemas[collection].label[0].toUpperCase() + contentSchemas[collection].label.slice(1)} ${mode === 'delete' ? 'deleted' : item ? 'updated' : 'added'}. Your portfolio is up to date.`;
@@ -350,7 +378,7 @@ async function loadDashboard() {
         const response = await fetch('/api/admin/dashboard', { cache: 'no-store', credentials: 'same-origin' });
         if (response.status === 401) { content.hidden = true; window.location.replace('/admin'); return; }
         if (!response.ok) throw new Error('Could not load the dashboard. Please try Refresh.');
-        dashboard = await response.json();
+        dashboard = normalizeDashboardContent(await response.json());
         document.querySelector('#message-count').textContent = dashboard.counts.messages;
         document.querySelector('#nav-message-count').textContent = dashboard.counts.messages;
         document.querySelector('#account-username').textContent = dashboard.username;
