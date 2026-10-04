@@ -1,15 +1,10 @@
 const http = require('node:http');
 const express = require('express');
-const fs = require('node:fs/promises');
 const path = require('node:path');
-const crypto = require('node:crypto');
 const { createAdminAuth } = require('./lib/admin-auth');
 const { createMongoStore } = require('./lib/mongo-store');
 const { attachChat } = require('./lib/chat');
 const ROOT = __dirname;
-const UPLOADS_DIR = path.join(ROOT, 'uploads');
-const ALLOWED_MIME = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp', 'image/svg+xml': 'svg', 'image/avif': 'avif' };
-const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 
 async function createApp({ dataDir = ROOT, env = process.env, dataStore: suppliedDataStore } = {}) {
     const app = express();
@@ -79,29 +74,7 @@ async function createApp({ dataDir = ROOT, env = process.env, dataStore: supplie
         await dataStore.addContact(entry);
         res.status(200).json({ message: 'Data saved successfully.' });
     });
-    // Image upload API — admin only, raw binary body
-    app.post('/api/admin/upload-image', auth.requireApi, async (req, res) => {
-        try {
-            await fs.mkdir(UPLOADS_DIR, { recursive: true });
-            const mime = (req.headers['content-type'] || '').split(';')[0].trim();
-            const ext = ALLOWED_MIME[mime];
-            if (!ext) return res.status(415).json({ error: 'Unsupported image type. Use JPG, PNG, GIF, WebP, SVG, or AVIF.' });
-            const chunks = [];
-            let size = 0;
-            for await (const chunk of req) {
-                size += chunk.length;
-                if (size > MAX_IMAGE_SIZE) return res.status(413).json({ error: 'Image is too large. Maximum size is 5 MB.' });
-                chunks.push(chunk);
-            }
-            const filename = `${crypto.randomBytes(12).toString('hex')}.${ext}`;
-            await fs.writeFile(path.join(UPLOADS_DIR, filename), Buffer.concat(chunks));
-            res.json({ url: `/uploads/${filename}` });
-        } catch (err) {
-            res.status(500).json({ error: 'Upload failed. Please try again.' });
-        }
-    });
     // Only public portfolio content is served; credentials, contacts and source stay private.
-    app.use('/uploads', express.static(UPLOADS_DIR, { dotfiles: 'deny' }));
     app.use('/assets', express.static(path.join(ROOT, 'assets'), { dotfiles: 'deny' }));
     app.use('/experience', express.static(path.join(ROOT, 'experience'), { dotfiles: 'deny' }));
     app.use('/projects', express.static(path.join(ROOT, 'projects'), { dotfiles: 'deny' }));

@@ -36,13 +36,17 @@ IP address in Atlas Network Access. URL-encode special characters in the databas
 username or password. On first startup, existing `projects.json`,
 `skills.json`, `experience.json`, `certificates.json`, and `contacts.json` records
 are imported once; subsequent reads and writes use MongoDB. The homepage, Projects
-page, and Experience page continue to load the same public JSON endpoints. Refresh
-the public page after saving an admin change. An empty section stays empty, and
-removed content does not reappear from hardcoded HTML.
+page, and Experience page continue to load the same public JSON endpoints. Education
+is fixed HTML in `index.html` and is not managed through the admin panel or MongoDB.
+Refresh the public page after saving an admin change.
 
-Project images support existing names (such as `portfolio1`), `/assets/...` paths,
-or http(s) image URLs. Skill icons accept `/assets/...` paths or http(s) URLs.
-Image fields are optional; this version uses image links rather than file uploads.
+Project images, skill icons, and certificate images accept an `/assets/...` path or
+a full http(s) image URL. Cloudinary-hosted images can be used by pasting their
+complete secure delivery URL (for example, `https://res.cloudinary.com/<cloud>/image/upload/<asset>`).
+The image field also accepts that Cloudinary URL without the leading `https://`.
+The dashboard does not upload files; upload images to Cloudinary separately and
+paste the returned URL/path into the relevant field. A Cloudinary public ID alone
+is not a display URL; use the full `res.cloudinary.com/<cloud>/image/upload/...` path.
 
 To publish a certificate, open **Certificates** in the dashboard and choose **Add
 certificate**. Enter its title and issuer, then optionally add the issue date,
@@ -66,5 +70,5 @@ npm test
 
 Tests use isolated temporary records and credentials. They cover login/logout,
 protected routes, cookies, login throttling, contact submission, private file
-access, credential persistence, existing public routes, and all four content
+access, credential persistence, existing public routes, and all four editable content
 sections' create/edit/delete flows, validation, persistence, and concurrent writes.

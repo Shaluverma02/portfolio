@@ -27,13 +27,13 @@ const contentSchemas = {
         { key: 'name', label: 'Project name', required: true, max: 150 },
         { key: 'desc', label: 'Description', type: 'textarea', required: true, max: 2000 },
         { key: 'category', label: 'Category', options: [['basicweb', 'Basic Web'], ['mern', 'MERN Stack'], ['lamp', 'LAMP Stack'], ['android', 'Android App']] },
-        { key: 'image', label: 'Image URL or path', max: 2048, hint: 'Use an image URL, /assets/images/... path, or an existing image name such as portfolio1.' },
+        { key: 'image', label: 'Image URL', max: 2048, hint: 'Enter an /assets/ path or a Cloudinary URL such as res.cloudinary.com/<cloud>/image/upload/<asset>.' },
         { key: 'view', label: 'Live project URL', max: 2048, hint: 'Optional. Use https://… or a path starting with /.' },
         { key: 'code', label: 'Source code URL', max: 2048 }
     ] },
     skills: { label: 'skill', fields: [
         { key: 'name', label: 'Skill name', required: true, max: 100 },
-        { key: 'icon', label: 'Icon URL or path', max: 2048, hint: 'Optional. Use an image URL or /assets/... path.' }
+        { key: 'icon', label: 'Icon URL', max: 2048, hint: 'Optional. Enter an /assets/ path or a Cloudinary URL such as res.cloudinary.com/<cloud>/image/upload/<asset>.' }
     ] },
     experience: { label: 'experience', fields: [
         { key: 'title', label: 'Company or title', required: true, max: 180 },
@@ -46,7 +46,7 @@ const contentSchemas = {
         { key: 'issuer', label: 'Issuing organization', required: true, max: 180 },
         { key: 'issuedOn', label: 'Issue date', type: 'date', half: true },
         { key: 'credentialId', label: 'Credential ID', max: 150, half: true },
-        { key: 'image', label: 'Certificate image URL or path', max: 2048, hint: 'Optional. Use an image URL beginning with https:// or a path under /assets/. A certificate illustration appears when no image is provided.' },
+        { key: 'image', label: 'Certificate image URL', max: 2048, hint: 'Optional. Enter an /assets/ path or a Cloudinary URL such as res.cloudinary.com/<cloud>/image/upload/<asset>. A certificate illustration appears when no image is provided.' },
         { key: 'url', label: 'Credential link', max: 2048, hint: 'Optional. Link to the certificate or verification page using https:// or a path starting with /.' },
         { key: 'description', label: 'Description', type: 'textarea', max: 2000, hint: 'Optional. Briefly describe what you learned or achieved.' }
     ] }
@@ -120,6 +120,10 @@ function safeLink(value) {
     if (typeof value !== 'string' || !value.trim() || value === '#') return null;
     try { const url = new URL(value, location.origin); return ['http:', 'https:'].includes(url.protocol) ? url.href : null; }
     catch { return null; }
+}
+function normalizeImageUrl(value) {
+    const imageUrl = typeof value === 'string' ? value.trim() : '';
+    return /^res\.cloudinary\.com\//i.test(imageUrl) ? `https://${imageUrl}` : imageUrl;
 }
 function contentRecordId(item) {
     for (const id of [item?.id, item?._id]) {
@@ -318,6 +322,20 @@ editorForm.addEventListener('submit', async event => {
         return;
     }
     let body = Object.fromEntries(new FormData(editorForm));
+    for (const key of ['image', 'icon']) {
+        if (typeof body[key] === 'string') body[key] = normalizeImageUrl(body[key]);
+    }
+    if (collection === 'projects' && mode !== 'delete' && body.image) {
+        const local = body.image.startsWith('/assets/');
+        const legacyName = /^[a-zA-Z0-9_-]+$/.test(body.image);
+        const remote = /^https?:\/\//i.test(body.image) && safeLink(body.image) && !/[\s\\<>"']/.test(body.image);
+        if (!(local || legacyName || remote)) {
+            editorError.textContent = 'Enter an /assets/ path or a full http(s) image URL, such as a Cloudinary delivery URL.';
+            editorError.hidden = false;
+            editorFields.querySelector('[name="image"]')?.focus();
+            return;
+        }
+    }
     if (collection === 'certificates' && mode !== 'delete') {
         body = Object.fromEntries(Object.entries(body).map(([key, value]) => [key, value.trim()]));
         const invalid = contentSchemas.certificates.fields.find(field => field.required && !body[field.key]);
@@ -338,7 +356,7 @@ editorForm.addEventListener('submit', async event => {
         body.links = { view: body.view, code: body.code }; delete body.view; delete body.code;
     }
     editorBusy = true; editorError.hidden = true;
-    editorForm.querySelectorAll('button').forEach(button => { button.disabled = true; });
+    editorForm.querySelectorAll('button, input, textarea, select').forEach(control => { control.disabled = true; });
     editorSave.textContent = mode === 'delete' ? 'Deleting…' : 'Saving…';
     try {
         const suffix = item ? `/${encodeURIComponent(contentRecordId(item))}` : '';
@@ -359,7 +377,7 @@ editorForm.addEventListener('submit', async event => {
     } catch (failure) {
         editorError.textContent = failure instanceof TypeError ? 'Could not connect. Your changes have not been confirmed. Please try again.' : failure.message; editorError.hidden = false;
     } finally {
-        editorBusy = false; editorForm.querySelectorAll('button').forEach(button => { button.disabled = false; });
+        editorBusy = false; editorForm.querySelectorAll('button, input, textarea, select').forEach(control => { control.disabled = false; });
         editorSave.textContent = mode === 'delete' ? 'Delete item' : 'Save changes';
     }
 });

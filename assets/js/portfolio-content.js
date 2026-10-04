@@ -96,6 +96,26 @@
             content.append(tag, description); row.append(content); container.append(row);
         });
     }
+    function renderEducation(container, records) {
+        for (const education of records) {
+            const card = node('div', 'box');
+            const imageUrl = safeUrl(education.image);
+            if (imageUrl) {
+                const preview = node('div', 'image');
+                preview.append(image(imageUrl, `${education.institution || education.title} logo`));
+                card.append(preview);
+            }
+            const content = node('div', 'content');
+            content.append(
+                node('h3', '', education.title),
+                node('p', '', education.institution),
+                node('h4', '', education.period)
+            );
+            if (education.description) content.append(node('p', '', education.description));
+            card.append(content);
+            container.append(card);
+        }
+    }
     function certificatePlaceholder() {
         const placeholder = node('div', 'certificate-placeholder');
         const badge = node('img'); badge.src = '/assets/images/certificate-badge.svg'; badge.alt = ''; badge.width = 80; badge.height = 96;
@@ -141,8 +161,8 @@
             card.append(preview, body); container.append(card);
         }
     }
-    const renderers = { skills: renderSkills, projects: renderProjects, experience: renderExperience, certificates: renderCertificates };
-    const emptyLabels = { skills: 'No skills listed yet.', projects: 'No projects listed yet.', experience: 'No experience listed yet.' };
+    const renderers = { skills: renderSkills, projects: renderProjects, experience: renderExperience, education: renderEducation, certificates: renderCertificates };
+    const emptyLabels = { skills: 'No skills listed yet.', projects: 'No projects listed yet.', experience: 'No experience listed yet.', education: 'No education listed yet.' };
     async function load(container) {
         const collection = container.dataset.content;
         container.setAttribute('aria-busy', 'true');

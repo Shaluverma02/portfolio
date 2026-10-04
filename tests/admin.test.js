@@ -109,13 +109,20 @@ test('login, refresh, session rotation, dashboard data and logout work', async t
     const cookie = cookieHeader.split(';')[0];
     const headers = { Cookie: cookie };
     assert.equal((await request('/admin/dashboard', { headers })).status, 200);
-    assert.equal((await request('/admin/dashboard', { headers })).status, 200);
+    const dashboardPage = await request('/admin/dashboard', { headers });
+    assert.equal(dashboardPage.status, 200);
+    const dashboardHtml = await dashboardPage.text();
+    assert.doesNotMatch(dashboardHtml, /data-view="education"|data-add="education"/);
     const redirected = await request('/admin', { headers });
     assert.equal(redirected.headers.get('location'), '/admin/dashboard');
     const dashboard = await (await request('/api/admin/dashboard', { headers })).json();
     assert.deepEqual(dashboard.counts, { projects: 1, skills: 2, experience: 0, certificates: 0, messages: 0 });
     assert.deepEqual(dashboard.certificates, []);
     assert.deepEqual(dashboard.contacts, []);
+    assert.equal((await request('/education.json')).status, 404);
+    const homepage = await (await request('/')).text();
+    assert.match(homepage, /Bachelor of Technology in Information Technology/);
+    assert.match(homepage, /Government Polytechnic Mohammadi, Kheri/);
     assert.equal(dashboard.username, 'admin');
     assert.equal((await request('/api/admin/session', { headers: { Cookie: 'portfolio_admin=forged' } })).status, 401);
     const rotated = await post('/api/admin/login', login, headers);
@@ -148,7 +155,7 @@ test('mutations reject cross-origin requests, malformed input and brute force', 
 
 test('portfolio pages stay public and contact submissions persist without data loss', async t => {
     const { request, post } = await fixture(t);
-    for (const route of ['/', '/index.html', '/projects/', '/experience/', '/skills.json', '/projects.json', '/certificates.json', '/assets/css/style.css', '/admin/assets/admin.css', '/admin/assets/login.js', '/admin/assets/dashboard.js']) {
+    for (const route of ['/', '/index.html', '/projects/', '/experience/', '/skills.json', '/projects.json', '/certificates.json', '/education.json', '/assets/css/style.css', '/admin/assets/admin.css', '/admin/assets/login.js', '/admin/assets/dashboard.js']) {
         assert.equal((await request(route)).status, 200, route);
     }
     assert.equal((await post('/api/save-contact-data', { name: '', email: 'test@example.com' })).status, 400);
@@ -263,6 +270,7 @@ test('all content sections support add, edit and delete with durable JSON and pu
 
 test('content writes require login, same-origin JSON, valid fields and safe URLs', async t => {
     const { request, post } = await fixture(t);
+    assert.equal((await request('/api/admin/upload-image', { method: 'POST', body: 'removed' })).status, 404);
     for (const collection of Object.keys(contentFixtures)) {
         const route = `/api/admin/content/${collection}`;
         assert.equal((await request(route)).status, 401);
@@ -285,10 +293,37 @@ test('content writes require login, same-origin JSON, valid fields and safe URLs
     }
     assert.equal((await post('/api/admin/content/projects', { ...contentFixtures.projects, category: 'not-a-category' }, { Cookie })).status, 400);
     assert.equal((await post('/api/admin/content/projects', { ...contentFixtures.projects, links: { view: 'javascript:alert(1)' } }, { Cookie })).status, 400);
+    assert.equal((await post('/api/admin/content/projects', { ...contentFixtures.projects, image: 'C:\\Users\\test\\image.png' }, { Cookie })).status, 400);
     assert.equal((await post('/api/admin/content/experience', { ...contentFixtures.experience, period: ' ' }, { Cookie })).status, 400);
     assert.equal((await post('/api/admin/content/credentials', {}, { Cookie })).status, 404);
     const allowed = await post('/api/admin/content/projects', { ...contentFixtures.projects, image: '/assets/images/example.jpg', links: { view: '/projects/', code: '' } }, { Cookie });
     assert.equal(allowed.status, 201);
+    const cloudinaryImage = await post('/api/admin/content/projects', {
+        ...contentFixtures.projects,
+        name: 'Cloudinary project',
+        image: 'https://res.cloudinary.com/test-cloud/image/upload/v123/example.png'
+    }, { Cookie });
+    assert.equal(cloudinaryImage.status, 201);
+    assert.equal((await cloudinaryImage.json()).item.image, 'https://res.cloudinary.com/test-cloud/image/upload/v123/example.png');
+    const cloudinaryPath = await post('/api/admin/content/projects', {
+        ...contentFixtures.projects,
+        name: 'Cloudinary path project',
+        image: 'res.cloudinary.com/test-cloud/image/upload/v123/path-project.png'
+    }, { Cookie });
+    assert.equal(cloudinaryPath.status, 201);
+    assert.equal((await cloudinaryPath.json()).item.image, 'https://res.cloudinary.com/test-cloud/image/upload/v123/path-project.png');
+    const cloudinarySkillIcon = await post('/api/admin/content/skills', {
+        name: 'Cloudinary Icon',
+        icon: 'https://res.cloudinary.com/test-cloud/image/upload/v123/icon.png'
+    }, { Cookie });
+    assert.equal(cloudinarySkillIcon.status, 201);
+    assert.equal((await cloudinarySkillIcon.json()).item.icon, 'https://res.cloudinary.com/test-cloud/image/upload/v123/icon.png');
+    const cloudinaryCertificate = await post('/api/admin/content/certificates', {
+        ...contentFixtures.certificates,
+        image: 'https://res.cloudinary.com/test-cloud/image/upload/v123/certificate.png'
+    }, { Cookie });
+    assert.equal(cloudinaryCertificate.status, 201);
+    assert.equal((await cloudinaryCertificate.json()).item.image, 'https://res.cloudinary.com/test-cloud/image/upload/v123/certificate.png');
 });
 
 test('concurrent writes preserve records and stable IDs keep edits on the correct item', async t => {

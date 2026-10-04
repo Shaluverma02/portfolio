@@ -172,6 +172,70 @@
 			],
 			"isBackground": false,
 			"problemMatcher": []
+		},
+		{
+			"label": "Start updated portfolio server",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"start"
+			],
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Test dynamic education",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"test"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Find port 5500 process",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"Get-NetTCPConnection -LocalPort 5500 -State Listen | Select-Object -ExpandProperty OwningProcess"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Restart updated portfolio server",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"Stop-Process -Id 12108 -Force"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Start education-enabled app",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"start"
+			],
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Validate education CRUD tests",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"test"
+			],
+			"isBackground": false,
+			"problemMatcher": []
 		}
 	]
 }
