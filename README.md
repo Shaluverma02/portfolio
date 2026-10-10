@@ -1,82 +1,45 @@
 # Shalu's portfolio
 
-## Folder layout
+## Project layout
 
 ```text
-frontend/
-  index.html
-  assets/          # CSS, browser JavaScript, images
-  admin/          # Admin UI; served through protected backend routes
-  projects/
-  experience/
-  server.js       # Public server and backend proxy
-  package.json
-backend/
-  app.js          # API, authentication, protected admin routes
-  server.js       # Backend startup
-  lib/            # MongoDB, validation, auth, chat
-  .env            # Existing environment settings moved here
-  .admin/         # Existing credentials preserved
-  *.json          # Seed data
-  uploads/
-  package.json
+server.js         # Website, API, admin and live chat in one server
+package.json      # Shared dependencies and commands
+index.html
+404.html
+assets/           # CSS, browser JavaScript and images
+admin/            # Protected admin UI
+projects/
+experience/
+lib/              # Database, authentication and chat modules
+.env              # Private environment settings
+.admin/           # Preserved admin credentials
+*.json            # Seed data
+uploads/
 ```
 
-Run from the project root using `npm run frontend` and `npm run backend`, or from each folder:
+## Run locally
 
-```powershell
-# Terminal 1
-cd backend
+Use Node.js 22+ and run from the project root:
+
+```sh
 npm install
 npm start
 ```
 
-```powershell
-# Terminal 2
-cd frontend
-npm install
-npm start
-```
-
-Edit environment settings in `backend/.env`. Frontend does not load database or admin secrets.
-
-Run frontend and backend in two separate terminals (Node.js 22+):
-
-Install dependencies once with `npm install`. Keep your existing `backend/.env`; for a new setup, copy `backend/.env.example` and enter the database settings.
-
-Terminal 1 — backend:
-
-```sh
-npm run backend
-```
-
-Terminal 2 — frontend:
-
-```sh
-npm run frontend
-```
-
-Open http://localhost:5500 for the portfolio and http://localhost:5500/admin for admin. Backend runs at http://localhost:5501. Use `npm run dev:backend` and `npm run dev:frontend` for automatic restarts.
-
-The `frontend/server.js` entry point serves the existing public HTML/CSS/JS and proxies API, public data, resume, admin, and WebSocket routes to the backend. The `backend/server.js` entry point handles MongoDB, authentication, contact submissions, resumes, and chat. Admin pages remain protected by backend authentication. All UI files now live in `frontend/`; their browser URLs stay the same. Backend logic, private credentials, seed JSON, uploads, and environment settings live in `backend/`. Frontend does not read `backend/.env`; only backend loads database and admin secrets.
-
-Optional settings: `BACKEND_PORT` in `backend/.env`, and `FRONTEND_PORT` / `BACKEND_URL` in the frontend terminal environment. If you change the backend port, set `BACKEND_URL` to match. Both processes must run for live data, admin, contact, and chat; the public frontend can start independently.
-
-The original combined server is also available:
-
-```sh
-npm install
-copy backend\.env.example backend\.env
-npm start
-```
+For a new setup, copy `.env.example` to `.env` and configure MongoDB.
+Existing environment settings and admin credentials are preserved at the root.
+Use `npm run dev` for automatic restarts, `npm test` for tests, and
+`npm run check:db` to check database startup. Set `PORT` in `.env` to override 5500.
+The website, API, admin and live chat run in one process through `server.js`.
 
 - Portfolio: http://localhost:5500/
 - Admin login: http://localhost:5500/admin
 - Dashboard after login: http://localhost:5500/admin/dashboard
 
 On first start, the server creates username `admin` and a random password. Open
-`backend/.admin/login-details.txt` locally for the credentials. The password hash is stored
-in `backend/.admin/credentials.json`; the whole `.admin` folder is excluded from Git and is
+`.admin/login-details.txt` locally for the credentials. The password hash is stored
+in `.admin/credentials.json`; the whole `.admin` folder is excluded from Git and is
 never served over HTTP. Keep the login-details file private; it can be removed
 after saving the password in a password manager.
 
@@ -93,7 +56,7 @@ The old `/showdata.html` address redirects to the protected inbox.
 Portfolio content and contact submissions are stored in MongoDB. Start a local
 MongoDB server (`mongod`) on its default address, `mongodb://127.0.0.1:27017`, or
 set `MONGODB_URI` to your MongoDB connection string and optionally `MONGODB_DB`
-(defaults to `portfolio`). Copy `backend/.env.example` to `backend/.env` to configure these values
+(defaults to `portfolio`). Copy `.env.example` to `.env` to configure these values
 for both `npm start` and `npm run dev`; production can provide them as environment
 variables instead. For MongoDB Atlas, use the `mongodb+srv://` connection string
 from Atlas, ensure the database user has read/write access, and allow your server's
@@ -102,7 +65,7 @@ username or password. On first startup, existing `projects.json`,
 `skills.json`, `experience.json`, `certificates.json`, and `contacts.json` records
 are imported once; subsequent reads and writes use MongoDB. The homepage, Projects
 page, and Experience page continue to load the same public JSON endpoints. Education
-is fixed HTML in `frontend/index.html` and is not managed through the admin panel or MongoDB.
+is fixed HTML in `index.html` and is not managed through the admin panel or MongoDB.
 Refresh the public page after saving an admin change.
 
 Project images, skill icons, and certificate images accept an `/assets/...` path or

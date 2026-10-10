@@ -99,7 +99,7 @@ function fixture({ reducedMotion = false, intersectionObserver = true, webAnimat
     });
     if (intersectionObserver) window.IntersectionObserver = IntersectionObserver;
     vm.runInNewContext(
-        fs.readFileSync(path.join(__dirname, '../frontend/assets/js/portfolio-motion.js'), 'utf8'),
+        fs.readFileSync(path.join(__dirname, '../assets/js/portfolio-motion.js'), 'utf8'),
         { ...window, window, console },
         { filename: 'portfolio-motion.js' }
     );

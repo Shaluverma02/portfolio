@@ -6,9 +6,9 @@ const os = require('node:os');
 const { randomUUID } = require('node:crypto');
 const { Readable } = require('node:stream');
 const { once } = require('node:events');
-const { createApp } = require('../backend/app');
-const { createContentStore } = require('../backend/lib/content-store');
-const { publicRecord } = require('../backend/lib/mongo-store');
+const { createApp } = require('../server');
+const { createContentStore } = require('../lib/content-store');
+const { publicRecord } = require('../lib/mongo-store');
 
 const login = { username: 'admin', password: 'Test-only-password-123!' };
 
