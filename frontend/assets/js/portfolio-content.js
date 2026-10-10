@@ -13,8 +13,35 @@
             return ['http:', 'https:'].includes(url.protocol) ? url.href : null;
         } catch { return null; }
     }
+    const emptyStates = {
+        skills: ['fas fa-layer-group', 'A toolkit in the making', 'New skills and technologies will appear here as the journey grows.'],
+        projects: ['fas fa-laptop-code', 'Good things are being built', 'A new collection of ideas, experiments, and finished projects is on its way.'],
+        experience: ['fas fa-briefcase', 'The next chapter awaits', 'New roles, collaborations, and milestones will be shared here.'],
+        education: ['fas fa-graduation-cap', 'A journey of learning', 'Education and academic milestones will appear here soon.'],
+        certificates: ['fas fa-award', 'Always learning, always growing', 'New certificates and learning milestones will be shared here.']
+    };
+    function stateCard(collection, errorMessage) {
+        const [icon, title, description] = emptyStates[collection] || emptyStates.projects;
+        const card = node('div', 'portfolio-empty-state');
+        card.setAttribute('role', 'status');
+        const symbol = node('i', errorMessage ? 'fas fa-cloud' : icon);
+        symbol.setAttribute('aria-hidden', 'true');
+        const artwork = node('div', 'empty-state-art'); artwork.append(symbol);
+        card.append(artwork, node('span', 'empty-state-eyebrow', errorMessage ? 'A little pause' : 'More to come'),
+            node('h3', '', errorMessage ? 'We’ll be back in a moment' : title),
+            node('p', '', errorMessage || description));
+        if (errorMessage) {
+            const retry = node('button', 'empty-state-action', 'Try again'); retry.type = 'button';
+            retry.addEventListener('click', () => load(card.parentElement)); card.append(retry);
+        }
+        return card;
+    }
     function status(container, message) {
-        container.replaceChildren(node('p', 'content-status', message));
+        container.replaceChildren(stateCard(container.dataset.content, message));
+        container.classList.add('content-empty');
+    }
+    function empty(container) {
+        container.replaceChildren(stateCard(container.dataset.content));
         container.classList.add('content-empty');
     }
     function image(src, alt, fallback) {
@@ -43,8 +70,16 @@
             const description = node('div', 'desc'); description.append(node('p', '', project.desc));
             const links = node('div', 'btns');
             for (const [key, label, icon] of [['view', 'View', 'fas fa-eye'], ['code', 'Code', 'fas fa-code']]) {
-                const url = safeUrl(project.links?.[key]); if (!url) continue;
-                const link = node('a', 'btn'); link.href = url; link.target = '_blank'; link.rel = 'noopener noreferrer';
+                const url = safeUrl(project.links?.[key]);
+                const link = node(url ? 'a' : 'button', 'btn');
+                if (url) {
+                    link.href = url; link.target = '_blank'; link.rel = 'noopener noreferrer';
+                    link.setAttribute('aria-label', `${label} ${project.name || 'project'} (opens in a new tab)`);
+                } else {
+                    link.type = 'button'; link.disabled = true;
+                    link.title = `${label} link coming soon`;
+                    link.setAttribute('aria-label', `${label} ${project.name || 'project'} — link coming soon`);
+                }
                 const symbol = node('i', icon); symbol.setAttribute('aria-hidden', 'true');
                 link.append(symbol, document.createTextNode(` ${label}`)); links.append(link);
             }
@@ -162,17 +197,17 @@
         }
     }
     const renderers = { skills: renderSkills, projects: renderProjects, experience: renderExperience, education: renderEducation, certificates: renderCertificates };
-    const emptyLabels = { skills: 'No skills listed yet.', projects: 'No projects listed yet.', experience: 'No experience listed yet.', education: 'No education listed yet.' };
     async function load(container) {
         const collection = container.dataset.content;
         container.setAttribute('aria-busy', 'true');
         try {
             const response = await fetch(`/${collection}.json`, { cache: 'no-store' });
             if (!response.ok) throw new Error('Unable to load portfolio content.');
-            const records = await response.json();
+            const text = await response.text();
+            const records = text.trim() ? JSON.parse(text) : [];
             if (!Array.isArray(records)) throw new Error('Invalid portfolio data.');
             container.replaceChildren(); container.classList.remove('content-empty');
-            if (!records.length && collection !== 'certificates') { status(container, emptyLabels[collection]); return; }
+            if (!records.length) { empty(container); return; }
             renderers[collection](container, records);
             // Register freshly loaded cards without restarting existing reveals.
             window.PortfolioMotion?.refresh(container);
@@ -181,4 +216,18 @@
         } finally { container.setAttribute('aria-busy', 'false'); }
     }
     document.querySelectorAll('[data-content]').forEach(load);
+    async function loadActiveResume() {
+        try {
+            const response = await fetch('/api/resumes/active', { cache: 'no-store' });
+            if (!response.ok) throw new Error('Unable to load the active resume.');
+            const result = await response.json();
+            if (typeof result.url === 'string' && result.url.startsWith('/resumes/')) {
+                const link = document.querySelector('#resume-link');
+                if (link) link.href = result.url;
+            }
+        } catch (error) {
+            console.error('Could not load the active resume:', error);
+        }
+    }
+    loadActiveResume();
 })();

@@ -9,9 +9,15 @@ const editorFields = document.querySelector('#editor-fields');
 const editorError = document.querySelector('#editor-error');
 const editorSave = document.querySelector('#editor-save');
 const saveStatus = document.querySelector('#save-status');
+const resumeForm = document.querySelector('#resume-upload-form');
+const resumeInput = document.querySelector('#resume-file');
+const resumeUploadButton = document.querySelector('#resume-upload-button');
+const resumeList = document.querySelector('#resume-list');
+const resumeError = document.querySelector('#resume-error');
 let editing = null;
 let editorBusy = false;
 let dashboard = null;
+let resumes = [];
 let loadingData = false;
 const views = {
     overview: ['Overview', "Welcome back. Here's what's happening with your portfolio."],
@@ -20,6 +26,7 @@ const views = {
     skills: ['Skills', 'Keep your portfolio technologies and tools up to date.'],
     experience: ['Experience', 'Manage your roles, internships, and professional journey.'],
     certificates: ['Certificates', 'Showcase your learning, achievements, and professional credentials.'],
+    resumes: ['Resumes', 'Upload resumes and choose which one appears on your portfolio.'],
     livechat: ['Live Chat', 'Real-time conversations with visitors on your portfolio.']
 };
 const contentSchemas = {
@@ -262,6 +269,122 @@ function renderCertificates() {
         body.append(footer); card.append(preview, body); container.append(card);
     }
 }
+function renderResumes() {
+    resumeList.replaceChildren();
+    if (!resumes.length) return emptyState(resumeList, 'No resumes uploaded', 'Upload a PDF resume to make it available from your portfolio.');
+    for (const resume of resumes) {
+        const row = element('article', 'resume-item');
+        const details = element('div', 'resume-item-details');
+        details.append(element('strong', '', resume.filename));
+        details.append(element('span', '', `${(resume.size / (1024 * 1024)).toFixed(2)} MB · Uploaded ${formatDate(resume.uploadedAt)}`));
+        const actions = element('div', 'resume-item-actions');
+        if (resume.active) {
+            actions.append(element('span', 'resume-active-badge', 'Currently shown'));
+        } else {
+            const activate = element('button', 'item-button', 'Set as current');
+            activate.type = 'button';
+            activate.addEventListener('click', () => updateResume(`/api/admin/resumes/${encodeURIComponent(resume.id)}/active`, 'PATCH', 'Resume selection updated.'));
+            actions.append(activate);
+        }
+        const remove = element('button', 'item-button danger-text', 'Delete');
+        remove.type = 'button';
+        remove.setAttribute('aria-label', `Delete resume ${resume.filename}`);
+        remove.addEventListener('click', () => {
+            if (window.confirm(`Delete "${resume.filename}"?`)) {
+                updateResume(`/api/admin/resumes/${encodeURIComponent(resume.id)}`, 'DELETE', 'Resume deleted.');
+            }
+        });
+        actions.append(remove); row.append(details, actions); resumeList.append(row);
+    }
+}
+async function loadResumes() {
+    resumeError.hidden = true;
+    const response = await fetch('/api/admin/resumes', { cache: 'no-store', credentials: 'same-origin' });
+    if (response.status === 401) { window.location.replace('/admin'); return; }
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Could not load resumes.');
+    resumes = result.resumes;
+    renderResumes();
+}
+async function updateResume(url, method, successMessage) {
+    resumeError.hidden = true;
+    try {
+        const response = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: method === 'PATCH' || method === 'DELETE' ? '{}' : undefined,
+            credentials: 'same-origin'
+        });
+        if (response.status === 401) { window.location.replace('/admin'); return; }
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Could not update resumes.');
+        resumes = result.resumes;
+        renderResumes();
+        saveStatus.textContent = successMessage;
+        saveStatus.hidden = false;
+    } catch (failure) {
+        resumeError.textContent = failure instanceof TypeError ? 'Could not connect. Please try again.' : failure.message;
+        resumeError.hidden = false;
+    }
+}
+resumeForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const files = Array.from(resumeInput.files || []);
+    if (!files.length) return;
+    const invalidType = files.find(file => !/\.pdf$/i.test(file.name) || (file.type && file.type !== 'application/pdf'));
+    if (invalidType) {
+        resumeError.textContent = 'Choose a PDF file.';
+        resumeError.hidden = false;
+        return;
+    }
+    if (files.some(file => file.size > 15 * 1024 * 1024)) {
+        resumeError.textContent = 'Resume is too large. Maximum size is 15 MB.';
+        resumeError.hidden = false;
+        return;
+    }
+    resumeUploadButton.disabled = true;
+    resumeInput.disabled = true;
+    resumeError.hidden = true;
+    resumeUploadButton.textContent = 'Uploading…';
+    let uploadedCount = 0;
+    let uploadFailure = null;
+    try {
+        for (const file of files) {
+            const response = await fetch(`/api/admin/resumes?filename=${encodeURIComponent(file.name)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/pdf' },
+                credentials: 'same-origin',
+                body: file
+            });
+            if (response.status === 401) { window.location.replace('/admin'); return; }
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || `Could not upload ${file.name}.`);
+            uploadedCount++;
+        }
+        saveStatus.textContent = `${uploadedCount} resume${uploadedCount === 1 ? '' : 's'} uploaded.`;
+        saveStatus.hidden = false;
+    } catch (failure) {
+        uploadFailure = failure instanceof TypeError ? 'Could not connect. Please try again.' : failure.message;
+    } finally {
+        try {
+            await loadResumes();
+        } catch (failure) {
+            uploadFailure = [uploadFailure, failure.message].filter(Boolean).join(' ');
+        }
+        if (uploadFailure) {
+            resumeError.textContent = uploadedCount
+                ? `${uploadedCount} resume${uploadedCount === 1 ? '' : 's'} uploaded; ${uploadFailure}`
+                : uploadFailure;
+            resumeError.hidden = false;
+            if (uploadedCount) resumeForm.reset();
+        } else {
+            resumeForm.reset();
+        }
+        resumeUploadButton.disabled = false;
+        resumeInput.disabled = false;
+        resumeUploadButton.textContent = 'Upload resumes';
+    }
+});
 function itemActions(collection, item) {
     const actions = element('div', 'item-actions');
     if (!contentRecordId(item)) {
@@ -397,6 +520,7 @@ async function loadDashboard() {
         if (response.status === 401) { content.hidden = true; window.location.replace('/admin'); return; }
         if (!response.ok) throw new Error('Could not load the dashboard. Please try Refresh.');
         dashboard = normalizeDashboardContent(await response.json());
+        await loadResumes();
         document.querySelector('#message-count').textContent = dashboard.counts.messages;
         document.querySelector('#nav-message-count').textContent = dashboard.counts.messages;
         document.querySelector('#account-username').textContent = dashboard.username;

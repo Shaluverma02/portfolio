@@ -1,0 +1,23 @@
+/* Standalone collection pages share the homepage theme. */
+.collection-page > .work, .collection-page > .experience { margin-top:8rem; min-height:calc(100svh - 8rem); padding-top:5rem; background:var(--paper); }
+.collection-intro { max-width:76rem; margin:0 auto 4rem; text-align:center; }
+.collection-back { display:inline-flex; align-items:center; gap:.8rem; margin-bottom:4rem; color:var(--muted); font-size:1.2rem; }
+.collection-back:hover { color:var(--accent); }
+.collection-eyebrow { font-size:1.1rem; letter-spacing:.2rem; text-transform:uppercase; font-weight:600; color:var(--accent); margin-bottom:1.6rem; }
+.collection-intro .heading { font-size:clamp(3.8rem,5.5vw,6rem); line-height:1.15; letter-spacing:-.2rem; padding:0; margin:0 0 2rem; }
+.collection-description { color:var(--muted); font-size:1.55rem; line-height:1.9; max-width:58rem; margin:auto; }
+.collection-page .work .button-group { margin:0 0 3rem; gap:1rem; justify-content:center; }
+.collection-page .work .button-group .btn { background:#fff; color:var(--muted); border:1px solid var(--line); padding:1.1rem 1.8rem; font-family:inherit; font-size:1.2rem; border-radius:3rem; }
+.collection-page .work .button-group .btn:hover { background:#e5eee0; color:var(--accent); border-color:#b5cbb0; }
+.collection-page .work .button-group .btn.is-checked { color:#fff; background:var(--accent); border-color:var(--accent); }
+.collection-page .work .box-container .grid-item { width:auto; padding:0; min-width:0; display:flex; }
+.collection-page .work .box-container .grid-item .box { width:100%; height:30rem; }
+.collection-page .backbtn, .collection-page .morebtn { display:flex; justify-content:center; margin:4rem 0 0; }
+.collection-page .backbtn .btn { display:inline-flex; align-items:center; gap:1rem; padding:1.3rem 2rem; border:1px solid var(--line); border-radius:.8rem; color:var(--accent); background:#fff; font-size:1.4rem; font-weight:600; }
+.collection-page .backbtn .btn:hover { background:#e5eee0; }
+.collection-page .experience .content { background:#fff; }
+.collection-page .experience .content .tag h2 { font-size:2.2rem; line-height:1.4; }
+.collection-page .experience .content .desc h3 { font-size:1.5rem; line-height:1.6; }
+.collection-page #menu { background:transparent; }
+@media(max-width:768px) { .collection-page > .work, .collection-page > .experience { margin-top:7rem; min-height:calc(100svh - 7rem); padding-top:3rem; } .collection-back { margin-bottom:3rem; } .collection-intro { margin-bottom:3rem; } }
+@media(max-width:600px) { .collection-page .work .button-group { gap:.8rem; } .collection-page .work .button-group .btn { padding:.9rem 1.3rem; font-size:1.1rem; } .collection-intro .heading { letter-spacing:-.14rem; } .collection-description { font-size:1.4rem; } .collection-page .experience .container { padding-left:3.8rem; } .collection-page .experience .content { padding:1.8rem; } }

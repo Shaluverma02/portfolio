@@ -3,10 +3,12 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
+const { randomUUID } = require('node:crypto');
+const { Readable } = require('node:stream');
 const { once } = require('node:events');
-const { createApp } = require('../server');
-const { createContentStore } = require('../lib/content-store');
-const { publicRecord } = require('../lib/mongo-store');
+const { createApp } = require('../backend/app');
+const { createContentStore } = require('../backend/lib/content-store');
+const { publicRecord } = require('../backend/lib/mongo-store');
 
 const login = { username: 'admin', password: 'Test-only-password-123!' };
 
@@ -37,6 +39,8 @@ async function fixture(t, env = { ADMIN_PASSWORD: login.password }) {
     await fs.writeFile(path.join(dataDir, 'projects.json'), JSON.stringify([{ name: 'Fixture project' }]));
     await fs.writeFile(path.join(dataDir, 'skills.json'), JSON.stringify([{ name: 'JavaScript' }, { name: 'CSS' }]));
     const contentStore = await createContentStore(dataDir);
+    const resumes = new Map();
+    let activeResumeId = null;
     let contactWrites = Promise.resolve();
     const dataStore = {
         ...contentStore,
@@ -51,6 +55,38 @@ async function fixture(t, env = { ADMIN_PASSWORD: login.password }) {
             });
             contactWrites = write.catch(() => {});
             return write;
+        },
+        async listResumes() {
+            return [...resumes.values()].map(({ data, ...resume }) => ({ ...resume, active: resume.id === activeResumeId }));
+        },
+        async uploadResume(filename, data) {
+            const resume = { id: randomUUID(), filename, size: data.length, uploadedAt: new Date().toISOString(), data };
+            resumes.set(resume.id, resume);
+            return { id: resume.id, filename, size: data.length, uploadedAt: resume.uploadedAt, active: false };
+        },
+        async getResume(id) {
+            const resume = resumes.get(id);
+            if (!resume) return null;
+            const { data, ...details } = resume;
+            return { ...details, active: id === activeResumeId };
+        },
+        openResume(id) {
+            const resume = resumes.get(id);
+            return resume ? Readable.from([resume.data]) : null;
+        },
+        async getActiveResume() {
+            return activeResumeId ? this.getResume(activeResumeId) : null;
+        },
+        async setActiveResume(id) {
+            if (!resumes.has(id)) throw Object.assign(new Error('Resume not found.'), { status: 404 });
+            activeResumeId = id;
+            return this.listResumes();
+        },
+        async deleteResume(id) {
+            if (!resumes.has(id)) throw Object.assign(new Error('Resume not found.'), { status: 404 });
+            resumes.delete(id);
+            if (activeResumeId === id) activeResumeId = null;
+            return this.listResumes();
         }
     };
     const app = await createApp({ dataDir, env, dataStore });
@@ -81,7 +117,7 @@ test('anonymous access is gated and private files are never served', async t => 
         assert.equal(res.status, 302, route);
         assert.equal(res.headers.get('location'), '/admin');
     }
-    for (const route of ['/api/admin/dashboard', '/api/admin/session', '/api/contacts']) {
+    for (const route of ['/api/admin/dashboard', '/api/admin/session', '/api/admin/resumes', '/api/contacts']) {
         const res = await request(route);
         assert.equal(res.status, 401, route);
         assert.equal(res.headers.get('cache-control'), 'no-store');
@@ -124,6 +160,7 @@ test('login, refresh, session rotation, dashboard data and logout work', async t
     assert.match(homepage, /Bachelor of Technology in Information Technology/);
     assert.match(homepage, /Government Polytechnic Mohammadi, Kheri/);
     assert.equal(dashboard.username, 'admin');
+    assert.deepEqual(await (await request('/api/resumes/active')).json(), { url: null });
     assert.equal((await request('/api/admin/session', { headers: { Cookie: 'portfolio_admin=forged' } })).status, 401);
     const rotated = await post('/api/admin/login', login, headers);
     const newCookie = rotated.headers.get('set-cookie').split(';')[0];
@@ -155,7 +192,7 @@ test('mutations reject cross-origin requests, malformed input and brute force', 
 
 test('portfolio pages stay public and contact submissions persist without data loss', async t => {
     const { request, post } = await fixture(t);
-    for (const route of ['/', '/index.html', '/projects/', '/experience/', '/skills.json', '/projects.json', '/certificates.json', '/education.json', '/assets/css/style.css', '/admin/assets/admin.css', '/admin/assets/login.js', '/admin/assets/dashboard.js']) {
+    for (const route of ['/', '/index.html', '/projects/', '/experience/', '/skills.json', '/projects.json', '/certificates.json', '/assets/css/style.css', '/admin/assets/admin.css', '/admin/assets/login.js', '/admin/assets/dashboard.js']) {
         assert.equal((await request(route)).status, 200, route);
     }
     assert.equal((await post('/api/save-contact-data', { name: '', email: 'test@example.com' })).status, 400);
@@ -200,17 +237,75 @@ test('production session cookies require HTTPS', async t => {
     assert.match(response.headers.get('set-cookie'), /; Secure/);
 });
 
+test('admin can upload, select and remove PDF resumes and the public link follows the active choice', async t => {
+    const { request, post } = await fixture(t);
+    const loginResponse = await post('/api/admin/login', login);
+    const Cookie = loginResponse.headers.get('set-cookie').split(';')[0];
+    const headers = { Cookie, 'Content-Type': 'application/pdf' };
+    const firstPdf = Buffer.from('%PDF-1.7\nfirst resume');
+    const crossOriginUpload = await request('/api/admin/resumes?filename=resume.pdf', {
+        method: 'POST', headers: { ...headers, Origin: 'https://unrelated.example' }, body: firstPdf
+    });
+    assert.equal(crossOriginUpload.status, 403);
+    const invalidType = await request('/api/admin/resumes?filename=resume.pdf', {
+        method: 'POST', headers: { Cookie, 'Content-Type': 'text/plain' }, body: firstPdf
+    });
+    assert.equal(invalidType.status, 415);
+    const invalidPdf = await request('/api/admin/resumes?filename=resume.pdf', {
+        method: 'POST', headers, body: Buffer.from('not a pdf')
+    });
+    assert.equal(invalidPdf.status, 400);
+
+    const firstUpload = await request('/api/admin/resumes?filename=first.pdf', {
+        method: 'POST', headers, body: firstPdf
+    });
+    assert.equal(firstUpload.status, 201);
+    const first = (await firstUpload.json()).resume;
+    assert.equal(first.active, true);
+    let publicActive = await (await request('/api/resumes/active')).json();
+    assert.equal(publicActive.url, `/resumes/${first.id}`);
+
+    const secondUpload = await request('/api/admin/resumes?filename=second.pdf', {
+        method: 'POST', headers, body: Buffer.from('%PDF-1.7\nsecond resume')
+    });
+    assert.equal(secondUpload.status, 201);
+    const second = (await secondUpload.json()).resume;
+    const activated = await request(`/api/admin/resumes/${second.id}/active`, {
+        method: 'PATCH', headers: { Cookie, 'Content-Type': 'application/json' }, body: '{}'
+    });
+    assert.equal(activated.status, 200);
+    assert.equal((await (await request('/api/admin/resumes', { headers: { Cookie } })).json()).resumes.find(resume => resume.active).id, second.id);
+    publicActive = await (await request('/api/resumes/active')).json();
+    assert.equal(publicActive.url, `/resumes/${second.id}`);
+
+    const publicPdf = await request(publicActive.url);
+    assert.equal(publicPdf.status, 200);
+    assert.equal(publicPdf.headers.get('content-type'), 'application/pdf');
+    assert.match(publicPdf.headers.get('content-disposition'), /inline/);
+    assert.equal(Buffer.from(await publicPdf.arrayBuffer()).toString(), '%PDF-1.7\nsecond resume');
+
+    const removedCurrent = await request(`/api/admin/resumes/${second.id}`, {
+        method: 'DELETE', headers: { Cookie, 'Content-Type': 'application/json' }, body: '{}'
+    });
+    assert.equal(removedCurrent.status, 200);
+    assert.equal((await (await request('/api/resumes/active')).json()).url, `/resumes/${first.id}`);
+    assert.equal((await request(`/api/admin/resumes/${first.id}`, {
+        method: 'DELETE', headers: { Cookie, 'Content-Type': 'application/json' }, body: '{}'
+    })).status, 200);
+    assert.deepEqual(await (await request('/api/resumes/active')).json(), { url: null });
+});
+
 test('configuration rejects unusable credentials and explicit reset recovers a damaged file', async t => {
-    const { dataDir } = await fixture(t);
-    await assert.rejects(createApp({ dataDir, env: { ADMIN_PASSWORD: 'short' } }), /12 to 1024/);
-    await assert.rejects(createApp({ dataDir, env: { ADMIN_PASSWORD: 'x'.repeat(1025) } }), /12 to 1024/);
-    await assert.rejects(createApp({ dataDir, env: { ADMIN_PASSWORD: login.password, ADMIN_USERNAME: ' ' } }), /1 to 150/);
+    const { dataDir, dataStore } = await fixture(t);
+    await assert.rejects(createApp({ dataDir, dataStore, env: { ADMIN_PASSWORD: 'short' } }), /12 to 1024/);
+    await assert.rejects(createApp({ dataDir, dataStore, env: { ADMIN_PASSWORD: 'x'.repeat(1025) } }), /12 to 1024/);
+    await assert.rejects(createApp({ dataDir, dataStore, env: { ADMIN_PASSWORD: login.password, ADMIN_USERNAME: ' ' } }), /1 to 150/);
     const file = path.join(dataDir, '.admin', 'credentials.json');
     await fs.writeFile(file, 'null');
-    await assert.rejects(createApp({ dataDir, env: {} }), /Invalid admin credentials/);
+    await assert.rejects(createApp({ dataDir, dataStore, env: {} }), /Invalid admin credentials/);
     await fs.writeFile(file, '{broken');
-    await assert.rejects(createApp({ dataDir, env: {} }), SyntaxError);
-    await createApp({ dataDir, env: { ADMIN_USERNAME: ' admin ', ADMIN_PASSWORD: login.password } });
+    await assert.rejects(createApp({ dataDir, dataStore, env: {} }), SyntaxError);
+    await createApp({ dataDir, dataStore, env: { ADMIN_USERNAME: ' admin ', ADMIN_PASSWORD: login.password } });
     const credentials = JSON.parse(await fs.readFile(file, 'utf8'));
     assert.equal(credentials.username, 'admin');
     assert.match(credentials.hash, /^[a-f0-9]{128}$/);

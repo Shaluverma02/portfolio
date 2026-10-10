@@ -74,6 +74,10 @@ async function createAdminAuth({ dataDir, env }) {
         }
         return allowed && req.get('sec-fetch-site') !== 'cross-site';
     }
+    function sameOriginRequest(req, res, next) {
+        if (!isSameOriginRequest(req)) return res.status(403).json({ error: 'Request not allowed.' });
+        next();
+    }
     function sameOrigin(req, res, next) {
         if (!isSameOriginRequest(req)) return res.status(403).json({ error: 'Request not allowed.' });
         if (!req.is('application/json')) return res.status(415).json({ error: 'A JSON request is required.' });
@@ -115,6 +119,6 @@ async function createAdminAuth({ dataDir, env }) {
         res.clearCookie(COOKIE_NAME, cookieOptions());
         res.json({ redirect: '/admin' });
     }
-    return { login, logout, getSession, requireApi, requirePage, sameOrigin };
+    return { login, logout, getSession, requireApi, requirePage, sameOrigin, sameOriginRequest };
 }
 module.exports = { createAdminAuth };

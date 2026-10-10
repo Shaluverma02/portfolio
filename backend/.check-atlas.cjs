@@ -1,4 +1,4 @@
-const { createApp } = require('./server');
+const { createApp } = require('./app');
 
 async function checkAtlas() {
     if (!process.env.MONGODB_URI) {

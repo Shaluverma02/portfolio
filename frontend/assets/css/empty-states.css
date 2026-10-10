@@ -1,0 +1,18 @@
+/* Shared empty states for the homepage and collection pages. */
+[data-content].content-empty { display:block; width:100%; }
+[data-content].content-empty::after { display:none; }
+[data-content] .portfolio-empty-state { grid-column:1/-1; width:100%; min-height:30rem; padding:4.5rem 2.4rem; display:flex; align-items:center; justify-content:center; flex-direction:column; text-align:center; border:1px dashed #b9cbbc; border-radius:1.8rem; background:linear-gradient(145deg,#fbfdf8,#edf4e9); color:#223831; position:relative; overflow:hidden; }
+[data-content] .portfolio-empty-state * { text-transform:none; }
+.empty-state-art { display:grid; place-items:center; width:8rem; height:8rem; margin-bottom:2.2rem; background:#deebd9; border:1px solid #cbdcc5; border-radius:2.4rem; transform:rotate(-6deg); box-shadow:0 8px 24px #294c3510; }
+.empty-state-art i { color:#166754; font-size:3rem; transform:rotate(6deg); }
+[data-content] .empty-state-eyebrow { font-size:1.05rem; font-weight:700; letter-spacing:.18rem; text-transform:uppercase; color:#39715a; margin-bottom:1rem; }
+[data-content] .portfolio-empty-state h3 { color:#223831; font-size:clamp(2rem,3vw,2.6rem); line-height:1.4; margin:0 0 1.2rem; padding:0; }
+[data-content] .portfolio-empty-state p { color:#65736d; font-size:1.45rem; line-height:1.8; max-width:43rem; margin:0; padding:0; font-weight:400; }
+[data-content] .empty-state-action { cursor:pointer; margin-top:2rem; padding:1rem 2rem; border:1px solid #166754; border-radius:.8rem; background:#166754; color:#fff; font:inherit; font-size:1.4rem; }
+[data-content] .empty-state-action:hover { background:#104d40; }
+[data-content] .empty-state-action:focus-visible { outline:3px solid #438d76; outline-offset:4px; }
+.skills [data-content] .portfolio-empty-state { background:linear-gradient(145deg,#ffffff0e,#ffffff05); border-color:#ffffff35; }
+.skills [data-content] .portfolio-empty-state h3 { color:#f5f9ef; }
+.skills [data-content] .portfolio-empty-state p { color:#d0ded3; }
+.skills [data-content] .empty-state-eyebrow { color:#b6d5a9; }
+@media(max-width:600px) { [data-content] .portfolio-empty-state { min-height:27rem; padding:3.5rem 2rem; } .empty-state-art { width:7rem; height:7rem; } }

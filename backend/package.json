@@ -1,0 +1,16 @@
+{
+  "name": "shalu-portfolio-backend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server.js",
+    "dev": "node --env-file-if-exists=.env --watch server.js",
+    "check:db": "node --env-file-if-exists=.env .check-atlas.cjs"
+  },
+  "dependencies": {
+    "body-parser": "^2.2.0",
+    "express": "^5.1.0",
+    "mongodb": "^6.17.0",
+    "ws": "^8.22.0"
+  }
+}

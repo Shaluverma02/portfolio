@@ -4,8 +4,12 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --env-file=.env --watch server.js",
-    "test": "node --test tests/*.test.js"
+    "dev": "npm --prefix backend run dev",
+    "test": "node --test tests/*.test.js",
+    "frontend": "npm --prefix frontend start",
+    "backend": "npm --prefix backend start",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:backend": "npm --prefix backend run dev"
   },
   "dependencies": {
     "body-parser": "^2.2.0",

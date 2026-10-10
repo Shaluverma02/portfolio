@@ -7,11 +7,15 @@
     <link rel="stylesheet" href="./assets/css/style.css">
     <link rel="stylesheet" href="./assets/css/certificates.css">
     <link rel="stylesheet" href="./assets/css/chat.css">
+    <link rel="stylesheet" href="./assets/css/refresh.css">
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" integrity="sha512-iBBXm8fW90+nuLcSKlbmrPcLa0OT92xO1BIsZ+ywDWZCvqsWgccV3gFoRBv0z+8dLJgyAHIhR35VZc2oM/gI1w==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <!-- Favicon -->
     <link id='favicon' rel="shortcut icon" href="./assets/images/favicon.png" type="image/x-png">
     <title>Portfolio | Shalu verma</title>
+    <link rel="stylesheet" href="/assets/css/empty-states.css">
+    <link rel="stylesheet" href="/assets/css/polish.css">
+    <script src="/assets/js/portfolio-theme.js"></script>
 </head>
 <body oncontextmenu="return false">
 
@@ -22,9 +26,13 @@
 
 <!-- navbar starts -->
 <header>
-        <a href="#home" class="logo"><img src="./assets/images/logo.png" alt="logo"></i > Shalu</a>
+        <a href="#home" class="logo"><img src="./assets/images/logo.png" alt=""> Shalu<span class="logo-dot">.</span></a>
 
-        <div id="menu" class="fas fa-bars"></div>
+        <button type="button" id="menu" class="fas fa-bars" aria-label="Open navigation" aria-expanded="false"></button>
+<button type="button" id="theme-toggle" class="theme-toggle" aria-label="Switch to dark mode" aria-pressed="false" hidden>
+            <svg class="theme-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M20.5 14A8.5 8.5 0 0 1 10 3.5 8.5 8.5 0 1 0 20.5 14Z"/></svg>
+            <svg class="theme-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg>
+        </button>
         <nav class="navbar">
             <ul>
             <li><a class="active" href="#home">Home</a></li>
@@ -46,11 +54,13 @@
     <div id="particles-js"></div>
 
     <div class="content">
-    <h2>Hi There,<br/> I'm Shalu <span>Verma</span></h2>
-    <p>i am into <span class="typing-text"></span></p>
-    <a href="#about" class="btn"><span>About Me</span>
-      <i class="fas fa-arrow-circle-down"></i>
-    </a>
+    <div class="hero-eyebrow"><span></span> Developer • Creator • Problem solver</div>
+    <h2>Hi, I'm Shalu.<br/> <span>I build for the web.</span></h2>
+    <p class="hero-role">Full stack developer into <span class="typing-text"></span></p>
+    <p class="hero-description">Turning ideas into thoughtful digital experiences, one line of code at a time.</p>
+    <div class="hero-actions"><a href="#work" class="btn"><span>Explore my work</span>
+      <i class="fas fa-arrow-right"></i>
+    </a><a href="#contact" class="hero-secondary">Let’s connect <span aria-hidden="true">↗</span></a></div>
     <div class="socials">
         <ul class="social-icons">
           <li><a class="linkedin" aria-label="LinkedIn" href="https://www.linkedin.com/in/shalu-verma-065785273/" target="_blank"><i class="fab fa-linkedin"></i></a></li> 
@@ -63,7 +73,7 @@
       </div>
     </div>
 <div class="image">
-    <img draggable="false" class="tilt" src="./assets/images/hero.png" alt="">
+    <img draggable="false" class="tilt" src="./assets/images/hero.png" alt="Shalu Verma">
 </div>
 </section>
 <!-- hero section ends -->
@@ -76,7 +86,7 @@
     <div class="row">
 
     <div class="image">
-        <img draggable="false" class="tilt" src="./assets/images/profile2.jpg" alt="">
+        <img draggable="false" class="tilt" src="./assets/images/profile2.jpg" alt="Portrait of Shalu Verma">
     </div>
     <div class="content">
         <h3>I'm Shalu</h3>
@@ -101,7 +111,7 @@
         </div>
         
         <div class="resumebtn">
-            <a href="https://drive.google.com/file/d/1swwJNDyI3pdWM2qIeNbmPZiXA8QalKYO/view?usp=drive_link" target="_blank" rel="noopener noreferrer" class="btn"><span>Resume</span>
+            <a id="resume-link" href="https://drive.google.com/file/d/1swwJNDyI3pdWM2qIeNbmPZiXA8QalKYO/view?usp=drive_link" target="_blank" rel="noopener noreferrer" class="btn"><span>Resume</span>
                 <i class="fas fa-chevron-right"></i>
             </a>
         </div>
@@ -229,19 +239,19 @@
 <form id="contact-form">
                 <div class="form-group">
                     <div class="field">
-                        <input type="text" name="name" placeholder="Name" required>
+                        <input type="text" name="name" aria-label="Name" autocomplete="name" placeholder="Name" required>
                         <i class='fas fa-user'></i>
                     </div>
                     <div class="field">
-                        <input type="text" name="email" placeholder="Email" required>
+                        <input type="email" name="email" aria-label="Email" autocomplete="email" placeholder="Email" required>
                         <i class='fas fa-envelope'></i>
                     </div>
                     <div class="field">
-                        <input type="text" name="phone" placeholder="Phone">
+                        <input type="tel" name="phone" aria-label="Phone" autocomplete="tel" placeholder="Phone">
                         <i class='fas fa-phone-alt'></i>
                     </div>
                     <div class="message">
-                        <textarea placeholder="Message" name="message" required></textarea>
+                        <textarea placeholder="Message" aria-label="Message" name="message" required></textarea>
                         <i class="fas fa-comment-dots"></i>
                     </div>
                 </div>

@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', function () {
         menuButton.classList.remove('fa-times');
         navbar.classList.remove('nav-toggle');
         menuButton.setAttribute('aria-expanded', 'false');
+        menuButton.setAttribute('aria-label', 'Open navigation');
     };
 
     const updateActiveSection = () => {
@@ -46,6 +47,18 @@ document.addEventListener('DOMContentLoaded', function () {
         updateActiveSection();
     };
 
+    if (menuButton && navbar) {
+        menuButton.addEventListener('click', () => {
+            const open = menuButton.getAttribute('aria-expanded') !== 'true';
+            navbar.classList.toggle('nav-toggle', open);
+            menuButton.classList.toggle('fa-times', open);
+            menuButton.setAttribute('aria-expanded', String(open));
+            menuButton.setAttribute('aria-label', open ? 'Close navigation' : 'Open navigation');
+        });
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape') closeNavbar();
+        });
+    }
     window.addEventListener('scroll', handlePageScroll, { passive: true });
     window.addEventListener('load', handlePageScroll);
 
@@ -56,7 +69,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const targetElement = document.querySelector(targetId);
             if (!targetElement) return;
             event.preventDefault();
-            targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            targetElement.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' });
             closeNavbar();
         });
     });
@@ -96,9 +109,17 @@ var typed = new Typed(".typing-text", {
 // Projects, skills and experience are rendered by portfolio-content.js.
 
 // <!-- tilt js effect starts -->
-VanillaTilt.init(document.querySelectorAll(".tilt"), {
-    max: 15,
-});
+(() => {
+    if (typeof VanillaTilt === 'undefined') return;
+    const preference = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const images = document.querySelectorAll('.tilt');
+    function updateTilt() {
+        images.forEach(image => image.vanillaTilt?.destroy());
+        if (!preference.matches) VanillaTilt.init(images, { max: 5, speed: 500 });
+    }
+    preference.addEventListener('change', updateTilt);
+    updateTilt();
+})();
 // <!-- tilt js effect ends -->
 
 
