@@ -6,6 +6,7 @@
         "start": "node --env-file-if-exists=../.env node_modules/vite/bin/vite.js --config vite.config.js",
         "dev": "node --env-file-if-exists=../.env node_modules/vite/bin/vite.js --config vite.config.js",
         "build": "node --env-file-if-exists=../.env node_modules/vite/bin/vite.js build --config vite.config.js",
+        "build:netlify": "node node_modules/vite/bin/vite.js build --config vite.config.js",
         "preview": "node --env-file-if-exists=../.env node_modules/vite/bin/vite.js preview --config vite.config.js"
     },
     "devDependencies": {
