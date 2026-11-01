@@ -3,39 +3,54 @@
 ## Project layout
 
 ```text
-server.js         # Website, API, admin and live chat in one server
-package.json      # Shared dependencies and commands
-index.html
-404.html
-assets/           # CSS, browser JavaScript and images
-admin/            # Protected admin UI
-projects/
-experience/
-lib/              # Database, authentication and chat modules
-.env              # Private environment settings
-.admin/           # Preserved admin credentials
+client/           # Website, assets, admin UI, Vite development server and build
+server/           # Independent API, database, authentication and live chat service
+package.json      # Root run/test commands
+.env              # Shared local server/client settings
 *.json            # Seed data
 uploads/
 ```
 
 ## Run locally
 
-Use Node.js 22+ and run from the project root:
+Use Node.js 22+ and install dependencies separately for each app:
 
 ```sh
-npm install
-npm start
+npm install --prefix server
+npm install --prefix client
 ```
 
-For a new setup, copy `.env.example` to `.env` and configure MongoDB.
-Existing environment settings and admin credentials are preserved at the root.
-Use `npm run dev` for automatic restarts, `npm test` for tests, and
-`npm run check:db` to check database startup. Set `PORT` in `.env` to override 5500.
-The website, API, admin and live chat run in one process through `server.js`.
+Start the backend and frontend in separate terminals, from the project root:
 
-- Portfolio: http://localhost:5500/
-- Admin login: http://localhost:5500/admin
-- Dashboard after login: http://localhost:5500/admin/dashboard
+```sh
+npm run server
+npm run client
+```
+
+Each folder has its own `node_modules` and lockfile. The backend API listens on
+port 5500; the client runs independently on port 5173. The frontend calls the
+backend directly using `VITE_API_URL` and does not proxy requests.
+For local login, open the exact `http://localhost:5173` address (not the
+`127.0.0.1` alias) so the browser sends the session cookie to the localhost API.
+
+Or, in separate terminals, run `npm run dev` from `server/` and `client/`.
+Open the frontend at http://localhost:5173. Build the static frontend with
+`npm run build:client`; deploy `client/dist/` separately from the backend.
+The backend serves only API/data/WebSocket routes; configure its `CLIENT_ORIGIN`
+to match the deployed frontend origin. The frontend build embeds `VITE_API_URL`,
+so rebuild it after changing the backend URL.
+
+For a new setup, copy `.env.example` to `.env` and configure MongoDB and
+`VITE_API_URL` (the publicly reachable backend base URL) plus `CLIENT_ORIGIN`
+(the frontend origin allowed to call the API). Add comma-separated origins when
+you serve the client from multiple domains. Set `PORT` and `CLIENT_PORT` to
+change the local ports; update `VITE_API_URL` to match `PORT`.
+Existing environment settings and admin credentials are preserved at the root.
+Use `npm test` for tests and `npm run check:db` to check database startup.
+
+- Portfolio: http://localhost:5173/
+- Admin login: http://localhost:5173/admin/login.html
+- Dashboard after login: http://localhost:5173/admin/dashboard.html
 
 On first start, the server creates username `admin` and a random password. Open
 `.admin/login-details.txt` locally for the credentials. The password hash is stored
@@ -53,12 +68,14 @@ Sign out
 returns to the login page. Sessions expire after eight hours or a server restart.
 The old `/showdata.html` address redirects to the protected inbox.
 
-Portfolio content and contact submissions are stored in MongoDB. Start a local
+Portfolio content and contact submissions are stored in MongoDB. The backend
+serves JSON and API/WebSocket endpoints only; it does not serve the website.
+Start a local
 MongoDB server (`mongod`) on its default address, `mongodb://127.0.0.1:27017`, or
 set `MONGODB_URI` to your MongoDB connection string and optionally `MONGODB_DB`
 (defaults to `portfolio`). Copy `.env.example` to `.env` to configure these values
-for both `npm start` and `npm run dev`; production can provide them as environment
-variables instead. For MongoDB Atlas, use the `mongodb+srv://` connection string
+for the backend commands; production can provide them as environment variables
+instead. For MongoDB Atlas, use the `mongodb+srv://` connection string
 from Atlas, ensure the database user has read/write access, and allow your server's
 IP address in Atlas Network Access. URL-encode special characters in the database
 username or password. On first startup, existing `projects.json`,
@@ -87,8 +104,8 @@ To set or reset the account, stop the server and start it with `ADMIN_USERNAME`
 (12 to 1024 characters) as environment variables. These replace the stored
 credentials and remove the initial login-details file. There is no public sign-up.
 
-`PORT` overrides port 5500. `npm run dev` restarts the server on source changes;
-this also clears login sessions. For HTTPS hosting, use `NODE_ENV=production` so
+`PORT` overrides backend port 5500. The backend `npm run dev` command restarts
+on source changes; this also clears login sessions. For HTTPS hosting, use `NODE_ENV=production` so
 session cookies have the Secure flag. Admin credentials remain in the private `.admin` directory. Login sessions remain
 in memory and expire after a server restart.
 

@@ -6,9 +6,9 @@ const os = require('node:os');
 const { randomUUID } = require('node:crypto');
 const { Readable } = require('node:stream');
 const { once } = require('node:events');
-const { createApp } = require('../server');
-const { createContentStore } = require('../lib/content-store');
-const { publicRecord } = require('../lib/mongo-store');
+const { createApp } = require('../server/server');
+const { createContentStore } = require('../server/lib/content-store');
+const { publicRecord } = require('../server/lib/mongo-store');
 
 const login = { username: 'admin', password: 'Test-only-password-123!' };
 
@@ -42,15 +42,29 @@ async function fixture(t, env = { ADMIN_PASSWORD: login.password }) {
     const resumes = new Map();
     let activeResumeId = null;
     let contactWrites = Promise.resolve();
+    let profile = { socials: { ...require('../server/lib/profile-settings').socialDefaults } };
     const dataStore = {
+        async getProfile() { return profile; },
+        async setProfile(body) { profile = { ...profile, ...require('../server/lib/profile-settings').validateProfile(body) }; return profile; },
         ...contentStore,
         async readContacts() {
             return JSON.parse(await fs.readFile(path.join(dataDir, 'contacts.json'), 'utf8'));
         },
+        deleteContact(id) {
+            const write = contactWrites.then(async () => {
+                const contacts = await this.readContacts();
+                const index = contacts.findIndex(item => item.id === id);
+                if (index < 0) throw Object.assign(new Error('Message not found.'), { status: 404 });
+                contacts.splice(index, 1);
+                await fs.writeFile(path.join(dataDir, 'contacts.json'), JSON.stringify(contacts), 'utf8');
+            });
+            contactWrites = write.catch(() => {});
+            return write;
+        },
         addContact(entry) {
             const write = contactWrites.then(async () => {
                 const contacts = await this.readContacts();
-                contacts.push(entry);
+                contacts.push({ ...entry, id: randomUUID() });
                 await fs.writeFile(path.join(dataDir, 'contacts.json'), JSON.stringify(contacts, null, 2), 'utf8');
             });
             contactWrites = write.catch(() => {});
@@ -104,18 +118,12 @@ async function fixture(t, env = { ADMIN_PASSWORD: login.password }) {
     return { dataDir, app, base, request, post, dataStore };
 }
 
-test('anonymous access is gated and private files are never served', async t => {
+test('backend exposes APIs only and protects admin data', async t => {
     const { request } = await fixture(t);
-    for (const route of ['/admin', '/admin/', '/admin/login']) {
+    for (const route of ['/', '/admin', '/admin/', '/admin/login', '/admin/dashboard', '/admin/dashboard.html', '/assets/css/style.css', '/projects/', '/experience/']) {
         const res = await request(route);
-        assert.equal(res.status, 200, route);
-        assert.equal(res.headers.get('cache-control'), 'no-store');
-        assert.match(await res.text(), /id="login-form"/);
-    }
-    for (const route of ['/admin/dashboard', '/admin/dashboard/', '/admin/dashboard.html']) {
-        const res = await request(route);
-        assert.equal(res.status, 302, route);
-        assert.equal(res.headers.get('location'), '/admin');
+        assert.equal(res.status, 404, route);
+        assert.deepEqual(await res.json(), { error: 'Not found.' });
     }
     for (const route of ['/api/admin/dashboard', '/api/admin/session', '/api/admin/resumes', '/api/contacts']) {
         const res = await request(route);
@@ -126,17 +134,17 @@ test('anonymous access is gated and private files are never served', async t => 
     for (const route of ['/contacts.json', '/server.js', '/package.json', '/lib/admin-auth.js', '/.admin/credentials.json', '/.admin/login-details.txt', '/admin/assets/dashboard.html', '/admin/login.html', '/assets/%2e%2e/contacts.json']) {
         assert.equal((await request(route)).status, 404, route);
     }
-    const legacy = await request('/showdata.html');
-    assert.equal(legacy.status, 302);
-    assert.equal(legacy.headers.get('location'), '/admin/dashboard#messages');
+    assert.equal((await request('/showdata.html')).status, 404);
 });
 
 test('login, refresh, session rotation, dashboard data and logout work', async t => {
     const { request, post } = await fixture(t);
     assert.equal((await post('/api/admin/login', { ...login, password: 'wrong' })).status, 401);
-    const signedIn = await post('/api/admin/login', login);
+    const signedIn = await post('/api/admin/login', login, { Origin: 'http://localhost:5173' });
     assert.equal(signedIn.status, 200);
-    assert.equal((await signedIn.json()).redirect, '/admin/dashboard');
+    assert.equal(signedIn.headers.get('access-control-allow-origin'), 'http://localhost:5173');
+    assert.equal(signedIn.headers.get('access-control-allow-credentials'), 'true');
+    assert.equal((await signedIn.json()).redirect, '/admin/dashboard.html');
     const cookieHeader = signedIn.headers.get('set-cookie');
     assert.match(cookieHeader, /HttpOnly/);
     assert.match(cookieHeader, /SameSite=Strict/);
@@ -144,21 +152,12 @@ test('login, refresh, session rotation, dashboard data and logout work', async t
     assert.match(cookieHeader, /Max-Age=28800/);
     const cookie = cookieHeader.split(';')[0];
     const headers = { Cookie: cookie };
-    assert.equal((await request('/admin/dashboard', { headers })).status, 200);
-    const dashboardPage = await request('/admin/dashboard', { headers });
-    assert.equal(dashboardPage.status, 200);
-    const dashboardHtml = await dashboardPage.text();
-    assert.doesNotMatch(dashboardHtml, /data-view="education"|data-add="education"/);
-    const redirected = await request('/admin', { headers });
-    assert.equal(redirected.headers.get('location'), '/admin/dashboard');
     const dashboard = await (await request('/api/admin/dashboard', { headers })).json();
     assert.deepEqual(dashboard.counts, { projects: 1, skills: 2, experience: 0, certificates: 0, messages: 0 });
     assert.deepEqual(dashboard.certificates, []);
     assert.deepEqual(dashboard.contacts, []);
     assert.equal((await request('/education.json')).status, 404);
-    const homepage = await (await request('/')).text();
-    assert.match(homepage, /Bachelor of Technology in Information Technology/);
-    assert.match(homepage, /Government Polytechnic Mohammadi, Kheri/);
+    assert.deepEqual(await (await request('/')).json(), { error: 'Not found.' });
     assert.equal(dashboard.username, 'admin');
     assert.deepEqual(await (await request('/api/resumes/active')).json(), { url: null });
     assert.equal((await request('/api/admin/session', { headers: { Cookie: 'portfolio_admin=forged' } })).status, 401);
@@ -170,7 +169,7 @@ test('login, refresh, session rotation, dashboard data and logout work', async t
     assert.equal(signedOut.status, 200);
     assert.match(signedOut.headers.get('set-cookie'), /Expires=Thu, 01 Jan 1970/);
     assert.equal((await request('/api/admin/dashboard', { headers: { Cookie: newCookie } })).status, 401);
-    assert.equal((await request('/admin/dashboard', { headers: { Cookie: newCookie } })).status, 302);
+    assert.equal((await request('/admin/dashboard', { headers: { Cookie: newCookie } })).status, 404);
 });
 
 test('mutations reject cross-origin requests, malformed input and brute force', async t => {
@@ -187,21 +186,39 @@ test('mutations reject cross-origin requests, malformed input and brute force', 
     const limited = await post('/api/admin/login', login);
     assert.equal(limited.status, 429);
     assert.ok(Number(limited.headers.get('retry-after')) > 0);
-    assert.equal((await request('/')).status, 200);
+    assert.equal((await request('/')).status, 404);
 });
 
-test('portfolio pages stay public and contact submissions persist without data loss', async t => {
+test('public APIs stay available and contact submissions persist without data loss', async t => {
     const { request, post } = await fixture(t);
-    for (const route of ['/', '/index.html', '/projects/', '/experience/', '/skills.json', '/projects.json', '/certificates.json', '/assets/css/style.css', '/admin/assets/admin.css', '/admin/assets/login.js', '/admin/assets/dashboard.js']) {
+    for (const route of ['/', '/index.html', '/projects/', '/experience/', '/assets/css/style.css', '/admin/assets/admin.css', '/admin/assets/login.js', '/admin/assets/dashboard.js']) {
+        assert.equal((await request(route)).status, 404, route);
+    }
+    for (const route of ['/skills.json', '/projects.json', '/experience.json', '/certificates.json']) {
         assert.equal((await request(route)).status, 200, route);
     }
+    const preflight = await request('/api/save-contact-data', {
+        method: 'OPTIONS',
+        headers: {
+            Origin: 'http://localhost:5173',
+            'Access-Control-Request-Method': 'POST',
+            'Access-Control-Request-Headers': 'content-type'
+        }
+    });
+    assert.equal(preflight.status, 204);
+    assert.equal(preflight.headers.get('access-control-allow-origin'), 'http://localhost:5173');
+    assert.equal(preflight.headers.get('access-control-allow-credentials'), 'true');
+    assert.equal((await request('/api/save-contact-data', {
+        method: 'OPTIONS',
+        headers: { Origin: 'https://unrelated.example', 'Access-Control-Request-Method': 'POST' }
+    })).status, 403);
     assert.equal((await post('/api/save-contact-data', { name: '', email: 'test@example.com' })).status, 400);
     const message = '<img src=x onerror=alert(1)> & "quoted"';
     const responses = await Promise.all(Array.from({ length: 4 }, (_, index) => post('/api/save-contact-data', {
         name: `Test visitor ${index}`, email: 'test@example.com', phone: '', message
     })));
     responses.forEach(response => assert.equal(response.status, 200));
-    const session = await post('/api/admin/login', login);
+    const session = await post('/api/admin/login', login, { Origin: 'http://localhost:5173' });
     const Cookie = session.headers.get('set-cookie').split(';')[0];
     const contacts = await (await request('/api/contacts', { headers: { Cookie } })).json();
     assert.equal(contacts.length, 4);
@@ -232,9 +249,19 @@ test('generated credentials persist across restarts while sessions do not', asyn
 });
 
 test('production session cookies require HTTPS', async t => {
-    const { post } = await fixture(t, { ADMIN_PASSWORD: login.password, NODE_ENV: 'production' });
-    const response = await post('/api/admin/login', login);
+    const { post } = await fixture(t, {
+        ADMIN_PASSWORD: login.password,
+        NODE_ENV: 'production',
+        CLIENT_ORIGIN: 'https://frontend.example'
+    });
+    const response = await post('/api/admin/login', login, {
+        Origin: 'https://frontend.example',
+        'Sec-Fetch-Site': 'cross-site'
+    });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('access-control-allow-origin'), 'https://frontend.example');
     assert.match(response.headers.get('set-cookie'), /; Secure/);
+    assert.match(response.headers.get('set-cookie'), /SameSite=None/);
 });
 
 test('admin can upload, select and remove PDF resumes and the public link follows the active choice', async t => {
@@ -467,4 +494,85 @@ test('certificate validation rejects impossible dates, unsafe URLs and invalid f
     assert.deepEqual(item, { id: item.id, title: 'Certificate title', issuer: 'Issuing Academy', issuedOn: '', credentialId: '', description: '', image: '', url: '' });
     const allowed = await post(route, { ...valid, image: 'https://example.com/certificate.jpg', url: '/assets/certificates/course.pdf' }, { Cookie });
     assert.equal(allowed.status, 201);
+});
+
+test('profile settings require admin access and publish validated social links', async t => {
+    const { request, post, base } = await fixture(t);
+    assert.equal((await request('/admin/profile')).status, 404);
+    assert.equal((await request('/api/admin/profile')).status, 401);
+    assert.equal((await request('/api/admin/profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status, 401);
+    const loginResponse = await post('/api/admin/login', login);
+    const cookie = loginResponse.headers.get('set-cookie').split(';')[0];
+    const headers = { Cookie: cookie, 'Content-Type': 'application/json', Origin: base };
+    const write = socials => request('/api/admin/profile', { method: 'PUT', headers, body: JSON.stringify({ socials }) });
+    assert.equal((await write({ github: 'javascript:alert(1)' })).status, 400);
+    assert.equal((await write({ github: 'https://user:pass@example.com' })).status, 400);
+    assert.equal((await request('/api/admin/profile', { method: 'PUT', headers: { ...headers, Origin: 'https://elsewhere.example' }, body: JSON.stringify({ socials: {} }) })).status, 403);
+    const saved = await write({ github: 'https://github.com/new-profile', linkedin: '' });
+    assert.equal(saved.status, 200);
+    const published = await (await request('/api/profile')).json();
+    assert.equal(published.socials.github, 'https://github.com/new-profile');
+    assert.equal(published.socials.linkedin, '');
+    assert.equal(published.socials.instagram, '');
+    assert.deepEqual(await (await request('/api/admin/profile', { headers })).json(), published);
+});
+test('custom social icons and About image URLs are saved, validated and removable', async t => {
+    const { request, post } = await fixture(t);
+    const signedIn = await post('/api/admin/login', login);
+    const headers = { Cookie: signedIn.headers.get('set-cookie').split(';')[0], 'Content-Type': 'application/json' };
+    const write = body => request('/api/admin/profile', { method: 'PUT', headers, body: JSON.stringify({ socials: {}, ...body }) });
+    const profile = {
+        customSocials: [{ label: 'YouTube', url: 'https://youtube.com/@example', iconUrl: 'https://example.com/youtube.png' }],
+        aboutImageUrl: 'https://example.com/portrait.jpg'
+    };
+    assert.equal((await write(profile)).status, 200);
+    let published = await (await request('/api/profile')).json();
+    assert.deepEqual(published.customSocials, profile.customSocials);
+    assert.equal(published.aboutImageUrl, profile.aboutImageUrl);
+    for (const body of [
+        { aboutImageUrl: 'javascript:alert(1)' },
+        { aboutImageUrl: 'https://user:pass@example.com/image.png' },
+        { customSocials: [{ label: 'Test', url: 'javascript:alert(1)' }] },
+        { customSocials: [{ label: '', url: 'https://example.com' }] },
+        { customSocials: [{ label: 'Test', url: 'https://example.com', iconUrl: 'data:image/png,test' }] },
+        { customSocials: Array(31).fill(profile.customSocials[0]) }
+    ]) assert.equal((await write(body)).status, 400);
+    published = await (await request('/api/profile')).json();
+    assert.deepEqual(published.customSocials, profile.customSocials);
+    assert.equal(published.aboutImageUrl, profile.aboutImageUrl);
+    assert.equal((await write({})).status, 200);
+    assert.equal((await (await request('/api/profile')).json()).aboutImageUrl, profile.aboutImageUrl);
+    assert.equal((await write({ customSocials: [], aboutImageUrl: '' })).status, 200);
+    published = await (await request('/api/profile')).json();
+    assert.deepEqual(published.customSocials, []);
+    assert.equal(published.aboutImageUrl, '');
+});
+test('admin can delete one contact message and deletions require same-origin authentication', async t => {
+    const { request, post } = await fixture(t);
+    await post('/api/save-contact-data', { name: 'First', email: 'first@example.com', phone: '9876543210', message: 'Hello' });
+    await post('/api/save-contact-data', { name: 'Second', email: 'second@example.com', message: 'Keep this' });
+    const loginResponse = await post('/api/admin/login', login);
+    const headers = { Cookie: loginResponse.headers.get('set-cookie').split(';')[0], 'Content-Type': 'application/json' };
+    const contacts = await (await request('/api/contacts', { headers })).json();
+    const first = contacts.find(item => item.name === 'First');
+    const route = '/api/admin/messages/' + first.id;
+    assert.equal((await request(route, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status, 401);
+    assert.equal((await request(route, { method: 'DELETE', headers: { ...headers, Origin: 'https://unrelated.example' }, body: '{}' })).status, 403);
+    const deleted = await request(route, { method: 'DELETE', headers, body: '{}' });
+    assert.equal(deleted.status, 200);
+    assert.deepEqual((await deleted.json()).contacts.map(item => item.name), ['Second']);
+    assert.equal((await request(route, { method: 'DELETE', headers, body: '{}' })).status, 404);
+    const dashboard = await (await request('/api/admin/dashboard', { headers })).json();
+    assert.equal(dashboard.counts.messages, 1);
+    assert.equal(dashboard.contacts[0].name, 'Second');
+});
+
+test('message phone actions accept international and Indian mobile numbers without guessing other country codes', () => {
+    const source = require('node:fs').readFileSync(path.join(__dirname, '../client/admin/dashboard.js'), 'utf8');
+    const implementation = source.slice(source.indexOf('function contactPhone('), source.indexOf('async function deleteMessage('));
+    const phone = require('node:vm').runInNewContext(implementation + '; contactPhone');
+    assert.equal(phone('98765 43210'), '919876543210');
+    assert.equal(phone('+1 (212) 555-1234'), '12125551234');
+    assert.equal(phone('0044 7700 900123'), '447700900123');
+    for (const input of ['', '123', '2125551234', 'javascript:alert(1)', '+91 1234 ext 55', '+00012345678']) assert.equal(phone(input), null);
 });

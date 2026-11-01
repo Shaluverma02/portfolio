@@ -3,15 +3,15 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
-const { createApp } = require('../server');
+const { createApp } = require('../server/server');
 
-test('combined server serves website and API while keeping private files inaccessible', async t => {
+test('backend exposes public content APIs without serving frontend files', async t => {
     const tempRoot = await fs.realpath(os.tmpdir());
-    const dataDir = await fs.mkdtemp(path.join(tempRoot, 'portfolio-combined-'));
+    const dataDir = await fs.mkdtemp(path.join(tempRoot, 'portfolio-api-'));
     t.after(async () => {
         const target = await fs.realpath(dataDir);
         assert.equal(path.dirname(target), tempRoot);
-        assert.ok(path.basename(target).startsWith('portfolio-combined-'));
+        assert.ok(path.basename(target).startsWith('portfolio-api-'));
         await fs.rm(target, { recursive: true, force: true });
     });
     const app = await createApp({ dataDir, env: { ADMIN_PASSWORD: 'Test-only-password-123!' },
@@ -24,7 +24,7 @@ test('combined server serves website and API while keeping private files inacces
     });
     const base = 'http://127.0.0.1:' + server.address().port;
     for (const route of ['/', '/projects/', '/experience/', '/assets/css/refresh.css', '/admin']) {
-        assert.equal((await fetch(base + route)).status, 200, route);
+        assert.equal((await fetch(base + route)).status, 404, route);
     }
     for (const route of ['/.env', '/contacts.json', '/server.js', '/lib/admin-auth.js', '/.admin/credentials.json', '/package.json', '/.check-atlas.cjs']) {
         assert.equal((await fetch(base + route)).status, 404, route);

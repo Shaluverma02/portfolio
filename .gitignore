@@ -9,3 +9,4 @@ experience.json.tmp
 .env.*
 !.env.example
 test-results/
+client/dist/

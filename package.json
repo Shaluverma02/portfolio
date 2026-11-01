@@ -1,17 +1,14 @@
 {
-    "name":  "shalu_portfolio",
-    "version":  "1.0.0",
-    "main":  "server.js",
-    "scripts":  {
-                    "start":  "node --env-file-if-exists=.env server.js",
-                    "dev":  "node --env-file-if-exists=.env --watch server.js",
-                    "test":  "node --test tests/*.test.js",
-                    "check:db":  "node --env-file-if-exists=.env .check-atlas.cjs"
-                },
-    "dependencies":  {
-                         "body-parser":  "^2.2.0",
-                         "express":  "^5.1.0",
-                         "mongodb":  "^6.17.0",
-                         "ws":  "^8.22.0"
+                     "name": "shalu_portfolio",
+                     "version": "1.0.0",
+                     "private": true,
+                     "scripts": {
+                         "start": "npm --prefix server run start",
+                         "server": "npm --prefix server run dev",
+                         "client": "npm --prefix client run dev",
+                         "build:client": "npm --prefix client run build",
+                         "preview:client": "npm --prefix client run preview",
+                         "test": "node --test tests/*.test.js",
+                         "check:db": "npm --prefix server run check:db"
                      }
 }

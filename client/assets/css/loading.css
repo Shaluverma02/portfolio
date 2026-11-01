@@ -1,0 +1,20 @@
+/* Forest-green loading animation shared by portfolio pages. */
+.portfolio-loader { position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center; background: var(--paper, #f7f8f2); opacity: 1; transition: opacity .35s ease; }
+.portfolio-loader.is-leaving { opacity: 0; pointer-events: none; }
+.portfolio-loader-inner { text-align: center; color: var(--ink, #223831); }
+.loading-emblem { position: relative; display: grid; place-items: center; width: 9rem; height: 9rem; margin: 0 auto 2.4rem; border: 1px solid var(--line, #dce3da); border-radius: 50%; background: var(--surface, white); box-shadow: 0 12px 35px var(--shadow, #22383112); }
+.loading-emblem::before { content: ''; position: absolute; inset: -.7rem; border: 2px solid transparent; border-top-color: var(--accent, #166754); border-right-color: var(--accent, #166754); border-radius: 50%; animation: loader-orbit 1.2s linear infinite; }
+.loading-monogram { color: var(--accent, #166754); font-size: 3.5rem; font-weight: 800; letter-spacing: -.25rem; }
+.portfolio-loader-title { font-size: 1.8rem; font-weight: 600; }
+.portfolio-loader-caption { margin-top: .8rem; color: var(--muted, #65736d); font-size: 1.2rem; }
+.loading-dots { display: flex; justify-content: center; gap: .6rem; margin-top: 2rem; }
+.loading-dots span { width: .5rem; height: .5rem; border-radius: 50%; background: var(--accent, #166754); animation: loader-dot 1.1s ease-in-out infinite; }
+.loading-dots span:nth-child(2) { animation-delay: .15s; }
+.loading-dots span:nth-child(3) { animation-delay: .3s; }
+[data-content] > .section-loading { grid-column: 1 / -1; width: 100%; min-height: 18rem; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.8rem; color: var(--muted); font-size: 1.25rem; }
+.section-loading-ring { width: 3.5rem; height: 3.5rem; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: loader-orbit .9s linear infinite; }
+.skills .section-loading { color: #d0ded3; }
+.skills .section-loading-ring { border-color: #ffffff30; border-top-color: #94d5b1; }
+@keyframes loader-orbit { to { transform: rotate(360deg); } }
+@keyframes loader-dot { 0%, 80%, 100% { opacity: .3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-.4rem); } }
+@media (prefers-reduced-motion: reduce) { .loading-emblem::before, .section-loading-ring, .loading-dots span { animation: none; } .portfolio-loader { transition: none; } }
